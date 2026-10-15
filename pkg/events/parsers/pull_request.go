@@ -13,16 +13,17 @@ type prBranchPayload struct {
 }
 
 type pullRequestBodyPayload struct {
-	Number  int             `json:"number"`
-	Title   string          `json:"title"`
-	Body    string          `json:"body"`
-	State   string          `json:"state"`
-	Merged  bool            `json:"merged"`
-	HTMLURL string          `json:"html_url"`
-	HTMLUrl string          `json:"htmlUrl"`
-	User    actorPayload    `json:"user"`
-	Head    prBranchPayload `json:"head"`
-	Base    prBranchPayload `json:"base"`
+	Number             int             `json:"number"`
+	Title              string          `json:"title"`
+	Body               string          `json:"body"`
+	State              string          `json:"state"`
+	Merged             bool            `json:"merged"`
+	HTMLURL            string          `json:"html_url"`
+	HTMLUrl            string          `json:"htmlUrl"`
+	User               actorPayload    `json:"user"`
+	Head               prBranchPayload `json:"head"`
+	Base               prBranchPayload `json:"base"`
+	RequestedReviewers []actorPayload  `json:"requested_reviewers"`
 }
 
 func (p pullRequestBodyPayload) url() string {
@@ -30,10 +31,12 @@ func (p pullRequestBodyPayload) url() string {
 }
 
 type pullRequestPayload struct {
-	Number           int                    `json:"number"`
-	PullRequest      pullRequestBodyPayload `json:"pullRequest"`
-	PullRequestSnake pullRequestBodyPayload `json:"pull_request"`
-	Review           struct {
+	Number             int                    `json:"number"`
+	PullRequest        pullRequestBodyPayload `json:"pullRequest"`
+	PullRequestSnake   pullRequestBodyPayload `json:"pull_request"`
+	RequestedReviewer  actorPayload           `json:"requested_reviewer"`
+	RequestedReviewers []actorPayload         `json:"requested_reviewers"`
+	Review             struct {
 		Type    string `json:"type"`
 		Content string `json:"content"`
 	} `json:"review"`
@@ -55,15 +58,16 @@ func fillPullRequest(event *events.Event, body []byte) error {
 
 	pr := payload.pr()
 	event.PullRequest = events.PullRequestInfo{
-		Number:  firstPositive(pr.Number, payload.Number),
-		Title:   pr.Title,
-		Body:    pr.Body,
-		State:   pr.State,
-		Merged:  pr.Merged,
-		URL:     pr.url(),
-		Author:  pr.User.toActor(),
-		HeadRef: firstNonEmpty(pr.Head.Ref, pr.Head.Label),
-		BaseRef: firstNonEmpty(pr.Base.Ref, pr.Base.Label),
+		Number:    firstPositive(pr.Number, payload.Number),
+		Title:     pr.Title,
+		Body:      pr.Body,
+		State:     pr.State,
+		Merged:    pr.Merged,
+		URL:       pr.url(),
+		Author:    pr.User.toActor(),
+		HeadRef:   firstNonEmpty(pr.Head.Ref, pr.Head.Label),
+		BaseRef:   firstNonEmpty(pr.Base.Ref, pr.Base.Label),
+		Reviewers: requestedReviewers(event.Type, payload, pr),
 	}
 
 	if event.PullRequest.Author == (events.Actor{}) {

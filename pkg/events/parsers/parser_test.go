@@ -339,6 +339,62 @@ func TestParseEvent_PullRequestAuthorFallsBackToSender(t *testing.T) {
 	assert.Equal(t, "alice", event.PullRequest.Author.Name)
 }
 
+func TestParseEvent_ReviewRequested_GitverseSnakeCase(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action": "review_requested",
+		"number": 281,
+		"repository": map[string]any{
+			"full_name": "bks-frontend/fcs-frontend",
+		},
+		"sender": map[string]any{"login": "tmukhortova"},
+		"requested_reviewer": map[string]any{
+			"id":    38,
+			"login": "tmukhortova",
+		},
+		"pull_request": map[string]any{
+			"number":   281,
+			"title":    "STKPVT-281: Гайд по деплою",
+			"html_url": "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281",
+			"user":     map[string]any{"login": "aviktorov"},
+			"requested_reviewers": []any{
+				map[string]any{"login": "kvolkov"},
+				map[string]any{"login": "tmukhortova"},
+			},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "pull_request", "pull_request_review_requested", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, events.PullRequestReviewRequested, event.Type)
+	assert.Equal(t, 281, event.PullRequest.Number)
+	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281", event.PullRequest.URL)
+	require.Len(t, event.PullRequest.Reviewers, 1)
+	assert.Equal(t, "tmukhortova", event.PullRequest.Reviewers[0].Name)
+}
+
+func TestParseEvent_IssueCommentDeletedKeepsAction(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "deleted",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "org/app"},
+		"sender":     map[string]any{"login": "tmukhortova"},
+		"issue": map[string]any{
+			"number": 237,
+			"title":  "PR title",
+		},
+		"comment": map[string]any{
+			"body": "bla bla bla blaaa",
+			"user": map[string]any{"login": "tmukhortova"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, events.PullRequestComment, event.Type)
+	assert.Equal(t, "deleted", event.Action)
+	assert.Equal(t, "bla bla bla blaaa", event.Comment.Body)
+}
+
 func TestParseEvent_UsesActionFromBodyForTypeResolution(t *testing.T) {
 	cases := []struct {
 		action string

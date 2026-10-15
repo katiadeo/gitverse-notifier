@@ -103,6 +103,9 @@ func ResolveEventType(event, eventType, action string) (EventType, error) {
 		"pull_request_comment.pull_request_review_comment":   PullRequestReviewComment,
 		"issue_comment.pull_request_comment":                 PullRequestComment,
 		"pull_request.pull_request_review_request":           PullRequestReviewRequested,
+		"pull_request.pull_request_review_requested":         PullRequestReviewRequested,
+		"pull_request.review_requested":                      PullRequestReviewRequested,
+		"pull_request.review_request":                        PullRequestReviewRequested,
 		"pull_request.pull_request_sync":                     PullRequestSynchronized,
 
 		"pull_request.pull_request.opened":           PullRequestOpened,
@@ -110,6 +113,7 @@ func ResolveEventType(event, eventType, action string) (EventType, error) {
 		"pull_request.pull_request.edited":           PullRequestEdited,
 		"pull_request.pull_request.synchronized":     PullRequestSynchronized,
 		"pull_request.pull_request.review_requested": PullRequestReviewRequested,
+		"pull_request.pull_request.review_request":   PullRequestReviewRequested,
 	}
 
 	if value, ok := eventMapping[fmt.Sprintf("%s.%s.%s", event, eventType, action)]; ok {

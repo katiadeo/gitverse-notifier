@@ -41,6 +41,16 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 		name = defaultTelegramTemplate
 	}
 
+	if event.Type == events.PullRequestComment && !isCreatedComment(event.Action) {
+		logger.Info(ctx, "skipping telegram comment action",
+			"action", a.Name(),
+			"event", event.Type,
+			"comment-action", event.Action,
+			"repository", event.Repository,
+		)
+		return nil
+	}
+
 	if rule.SkipEmpty && templates.StripHTML(event.Comment.Body) == "" {
 		logger.Info(ctx, "skipping empty telegram comment",
 			"action", a.Name(),
@@ -59,7 +69,7 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 	logger.Debug(ctx, "rendered telegram message body", "action", a.Name(), "body", body)
 
 	if err := a.client.SendMessage(ctx, body); err != nil {
-		return err 
+		return err
 	}
 
 	logger.Info(ctx, "successfully sent telegram notification",
@@ -69,6 +79,15 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 		"repository", event.Repository,
 	)
 	return nil
+}
+
+func isCreatedComment(action string) bool {
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "", "created", "create":
+		return true
+	default:
+		return false
+	}
 }
 
 func clipTelegramText(s string) string {

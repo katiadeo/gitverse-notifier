@@ -96,6 +96,33 @@ func TestTelegramPRBranches(t *testing.T) {
 	)
 }
 
+func TestRenderTelegramReviewRequested(t *testing.T) {
+	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
+
+	content, err := os.ReadFile(filepath.Join("..", "..", "templates", "telegram", "review_requested.tmpl"))
+	require.NoError(t, err)
+
+	tmpl, err := template.New("telegram/review_requested").Funcs(funcMap()).Parse(string(content))
+	require.NoError(t, err)
+
+	engine := &Engine{engine: tmpl}
+	body, err := engine.Render("telegram/review_requested", Data{
+		PullRequest: events.PullRequestInfo{
+			Number: 281,
+			Title:  "STKPVT-281: Гайд по деплою",
+			URL:    "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281",
+			Reviewers: []events.Actor{
+				{Name: "tmukhortova", TgTag: "katiadeo"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, `[\#281](https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281) · review requested
+STKPVT\-281: Гайд по деплою
+@katiadeo
+`, body)
+}
+
 func TestRenderTelegramPRComment(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 

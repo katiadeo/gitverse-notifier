@@ -82,6 +82,37 @@ func fillCommon(event *events.Event, body []byte) error {
 	return nil
 }
 
+func requestedReviewers(eventType events.EventType, payload pullRequestPayload, pr pullRequestBodyPayload) []events.Actor {
+	if eventType == events.PullRequestReviewRequested {
+		if reviewer := payload.RequestedReviewer.toActor(); reviewer != (events.Actor{}) {
+			return []events.Actor{reviewer}
+		}
+	}
+
+	return uniqueActors(append(payload.RequestedReviewers, pr.RequestedReviewers...)...)
+}
+
+func uniqueActors(list ...actorPayload) []events.Actor {
+	out := make([]events.Actor, 0, len(list))
+	seen := make(map[string]struct{}, len(list))
+	for _, item := range list {
+		actor := item.toActor()
+		if actor == (events.Actor{}) {
+			continue
+		}
+		key := actor.Name
+		if actor.ID != 0 {
+			key = fmt.Sprintf("id:%d", actor.ID)
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, actor)
+	}
+	return out
+}
+
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
