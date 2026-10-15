@@ -6,28 +6,29 @@ allowed_jira_projects:
   - JIRA
   - TEST
 
-# Маппинг логинов из gitverse в логины из telegram,
-# можно использовать с помощью функций tgMention / tgMentions в шаблонах сообщений
+# Маппинг логинов GitVerse → username в Telegram (без @).
+# gitverse_login: telegram_username
 telegram_tags:
-  test: test
+  tmukhortova: katiadeo
+  aviktorov: viktorov616
 
 # Доступные события - ТОЛЬКО ДЛЯ СПРАВКИ
 available_events:
   - type: pull_request.opened
     description: PR открыт
-  
+
   - type: pull_request.closed
     description: PR закрыт
-  
+
   - type: pull_request.edited
     description: PR обновлен
-  
+
   - type: pull_request.synchronized
     description: PR синхронизирован, обычно при пуше новых комитов в ветку
-  
+
   - type: pull_request.review_requested
     description: Запрошено ревью PR, не содержит информацию о ревьювере
-  
+
   - type: pull_request.review_approved
     description: PR одобрен
 
@@ -83,16 +84,16 @@ event_groups:
 
 # Список действий, выполняемых при получении событий
 action_rules:
-  - on: pull_request.opened # Тип события
-    action: jira.comment_issue # Действие
-    template: jira/pr_opened # Имя шаблона (из templates/)
-
-  - on: pull_request.opened
-    action: jira.mention_at_web
-
-  - on: pull_request.opened
-    action: gitverse.create_comment # Комментарий в PR со ссылками на Jira
-    template: gitverse/jira_issues
+  # Jira / gitverse-комментарии выключены: сервис поднимается только с Telegram.
+  # Раскомментировать, когда появятся JIRA_URL и JIRA_TOKEN.
+  # - on: pull_request.opened
+  #   action: jira.comment_issue
+  #   template: jira/pr_opened
+  # - on: pull_request.opened
+  #   action: jira.mention_at_web
+  # - on: pull_request.opened
+  #   action: gitverse.create_comment
+  #   template: gitverse/jira_issues
 
   - on: pull_request.opened
     action: telegram.notify
@@ -114,6 +115,10 @@ action_rules:
     action: telegram.notify
     template: telegram/review_approved
 
+  - on: pull_request.review_rejected
+    action: telegram.notify
+    template: telegram/review_rejected
+
   - on: pull_request.comment
     action: telegram.notify
     skip_empty: true # Пропускать уведомление, если тело комментария пустое
@@ -124,9 +129,9 @@ action_rules:
     action: telegram.notify
     template: telegram/branch_push
 
-  - on: branch.created
-    action: jira.comment_issue
-    template: jira/branch_created
+  # - on: branch.created
+  #   action: jira.comment_issue
+  #   template: jira/branch_created
 
   - on: branch.created
     action: telegram.notify

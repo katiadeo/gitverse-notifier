@@ -42,10 +42,16 @@ func (e *GitverseLinks) Enrich(_ context.Context, event *events.Event) error {
 	event.RepositoryURL = fmt.Sprintf("%s/%s", baseURL, repoPath)
 
 	if event.Branch != "" {
-		event.BranchURL = fmt.Sprintf("%s/%s/src/branch/%s", baseURL, repoPath, url.PathEscape(event.Branch))
+		event.BranchURL = repoBranchURL(baseURL, repoPath, event.Branch)
+	}
+	if event.PullRequest.HeadRef != "" {
+		event.PullRequest.HeadURL = repoBranchURL(baseURL, repoPath, event.PullRequest.HeadRef)
+	}
+	if event.PullRequest.BaseRef != "" {
+		event.PullRequest.BaseURL = repoBranchURL(baseURL, repoPath, event.PullRequest.BaseRef)
 	}
 
-	if event.PullRequest.Number > 0 {
+	if event.PullRequest.Number > 0 && event.PullRequest.URL == "" {
 		event.PullRequest.URL = fmt.Sprintf("%s/%s/pulls/%d", baseURL, repoPath, event.PullRequest.Number)
 	}
 
@@ -53,10 +59,18 @@ func (e *GitverseLinks) Enrich(_ context.Context, event *events.Event) error {
 }
 
 func (e *GitverseLinks) addUserURL(baseURL string, actor *events.Actor) {
+	if strings.TrimSpace(actor.URL) != "" || baseURL == "" {
+		return
+	}
 	name := strings.TrimSpace(actor.Name)
 	if name != "" {
 		actor.URL = fmt.Sprintf("%s/%s", baseURL, url.PathEscape(name))
 	}
+}
 
-	return
+func repoBranchURL(baseURL, repoPath, ref string) string {
+	if baseURL == "" || repoPath == "" || ref == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s/src/branch/%s", baseURL, repoPath, url.PathEscape(ref))
 }

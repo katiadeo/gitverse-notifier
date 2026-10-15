@@ -76,7 +76,7 @@ func buildEventPipeline(ctx context.Context) *pipeline.Pipeline {
 
 	jiraClient, jiraErr := jira.NewJiraClient()
 	if jiraErr != nil {
-		logger.Fatal(ctx, jiraErr)
+		logger.Error(ctx, "failed to configure jira client", "err", jiraErr)
 	}
 
 	tgClient, tgErr := telegram.NewTelegramClient()

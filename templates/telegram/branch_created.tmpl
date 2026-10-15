@@ -1,1 +1,2 @@
-\[{{tgLink .Repository .RepositoryURL}}\]{{if .IssueKeys}} \[{{tgIssueURLs .IssueKeys}}\]{{end}} {{tgLink .Sender.Name .Sender.URL}} создал ветку {{tgLink .Branch .BranchURL}}
+{{tgLink .Repository .RepositoryURL}} · branch
+{{tgName .Sender}} created {{tgLink .Branch .BranchURL}}

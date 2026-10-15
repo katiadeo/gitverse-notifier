@@ -1,2 +1,4 @@
-\[{{tgLink .Repository .RepositoryURL}}\]{{if .IssueKeys}} \[{{tgIssueURLs .IssueKeys}}\]{{end}} {{tgLink .Comment.Author.Name .Comment.Author.URL}} оставил новый комментарий в PR{{if .PullRequest.Number}} \#{{.PullRequest.Number}}{{end}}: {{tgLink .PullRequest.Title .PullRequest.URL}}
-{{tgEscape .Comment.Body}}
+{{tgPR .PullRequest}} · comment{{with tgMentionOther .PullRequest.Author .Comment.Author}} · {{.}}{{end}}
+{{tgPlain .PullRequest.Title}}
+
+{{tgName .Comment.Author}}: {{tgPlain .Comment.Body}}

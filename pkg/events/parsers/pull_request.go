@@ -7,19 +7,44 @@ import (
 	"gitverse-notifier/pkg/events"
 )
 
+type prBranchPayload struct {
+	Ref   string `json:"ref"`
+	Label string `json:"label"`
+}
+
+type pullRequestBodyPayload struct {
+	Number  int             `json:"number"`
+	Title   string          `json:"title"`
+	Body    string          `json:"body"`
+	State   string          `json:"state"`
+	Merged  bool            `json:"merged"`
+	HTMLURL string          `json:"html_url"`
+	HTMLUrl string          `json:"htmlUrl"`
+	User    actorPayload    `json:"user"`
+	Head    prBranchPayload `json:"head"`
+	Base    prBranchPayload `json:"base"`
+}
+
+func (p pullRequestBodyPayload) url() string {
+	return firstNonEmpty(p.HTMLURL, p.HTMLUrl)
+}
+
 type pullRequestPayload struct {
-	Number      int `json:"number"`
-	PullRequest struct {
-		Title string       `json:"title"`
-		Body  string       `json:"body"`
-		State string       `json:"state"`
-		User  actorPayload `json:"user"`
-	} `json:"pullRequest"`
-	Review struct {
+	Number           int                    `json:"number"`
+	PullRequest      pullRequestBodyPayload `json:"pullRequest"`
+	PullRequestSnake pullRequestBodyPayload `json:"pull_request"`
+	Review           struct {
 		Type    string `json:"type"`
 		Content string `json:"content"`
 	} `json:"review"`
 	Sender actorPayload `json:"sender"`
+}
+
+func (p pullRequestPayload) pr() pullRequestBodyPayload {
+	if p.PullRequest.Title != "" || p.PullRequest.Number > 0 || p.PullRequest.url() != "" {
+		return p.PullRequest
+	}
+	return p.PullRequestSnake
 }
 
 func fillPullRequest(event *events.Event, body []byte) error {
@@ -28,12 +53,17 @@ func fillPullRequest(event *events.Event, body []byte) error {
 		return fmt.Errorf("failed to parse pull request json: %w", err)
 	}
 
+	pr := payload.pr()
 	event.PullRequest = events.PullRequestInfo{
-		Number: payload.Number,
-		Title:  payload.PullRequest.Title,
-		Body:   payload.PullRequest.Body,
-		State:  payload.PullRequest.State,
-		Author: payload.PullRequest.User.toActor(),
+		Number:  firstPositive(pr.Number, payload.Number),
+		Title:   pr.Title,
+		Body:    pr.Body,
+		State:   pr.State,
+		Merged:  pr.Merged,
+		URL:     pr.url(),
+		Author:  pr.User.toActor(),
+		HeadRef: firstNonEmpty(pr.Head.Ref, pr.Head.Label),
+		BaseRef: firstNonEmpty(pr.Base.Ref, pr.Base.Label),
 	}
 
 	if event.PullRequest.Author == (events.Actor{}) {

@@ -43,6 +43,7 @@ type PRBranch struct {
 type PullRequest struct {
 	ID                  int64      `json:"id"`
 	URL                 string     `json:"url"`
+	HTMLURL             string     `json:"html_url"`
 	Number              int        `json:"number"`
 	User                User       `json:"user"`
 	Title               string     `json:"title"`

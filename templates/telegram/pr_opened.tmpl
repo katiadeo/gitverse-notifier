@@ -1,1 +1,3 @@
-\[{{tgLink .Repository .RepositoryURL}}\]{{if .IssueKeys}} \[{{tgIssueURLs .IssueKeys}}\] {{end}}{{tgLink .PullRequest.Author.Name .PullRequest.Author.URL}} открыл PR {{tgLink .PullRequest.Title .PullRequest.URL}}
+{{tgPR .PullRequest}} · opened
+{{tgPlain .PullRequest.Title}}
+{{tgName .PullRequest.Author}}{{with tgPRBranches .PullRequest}} · {{.}}{{end}}

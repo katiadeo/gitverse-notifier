@@ -2,10 +2,20 @@ package templates
 
 import (
 	"fmt"
+	"html"
+	"regexp"
 	"strings"
 
 	"gitverse-notifier/pkg/config"
 	"gitverse-notifier/pkg/events"
+)
+
+var (
+	htmlBRRe             = regexp.MustCompile(`(?i)<br\s*/?>`)
+	htmlBlockCloseRe     = regexp.MustCompile(`(?i)</(p|div|li|h[1-6]|tr|table|blockquote)>`)
+	htmlTagRe            = regexp.MustCompile(`(?s)<[^>]*>`)
+	spaceBeforeNewlineRe = regexp.MustCompile(`[ \t]+\n`)
+	extraNewlineRe       = regexp.MustCompile(`\n{3,}`)
 )
 
 func JiraEscape(s string) string {
@@ -123,6 +133,13 @@ func TelegramMention(actor events.Actor) string {
 		return "@" + TelegramEscape(tag)
 	}
 
+	return TelegramName(actor)
+}
+
+func TelegramName(actor events.Actor) string {
+	if tag := strings.TrimPrefix(actor.TgTag, "@"); tag != "" {
+		return TelegramLink(tag, "https://t.me/"+tag)
+	}
 	return TelegramLink(actor.Name, actor.URL)
 }
 
@@ -134,4 +151,58 @@ func TelegramMentions(actors []events.Actor) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+func TelegramMentionOther(actor, except events.Actor) string {
+	if sameActor(actor, except) {
+		return ""
+	}
+	return TelegramMention(actor)
+}
+
+func sameActor(a, b events.Actor) bool {
+	if a.ID != 0 && a.ID == b.ID {
+		return true
+	}
+	if a.Name != "" && strings.EqualFold(a.Name, b.Name) {
+		return true
+	}
+	tagA := strings.TrimPrefix(strings.ToLower(a.TgTag), "@")
+	tagB := strings.TrimPrefix(strings.ToLower(b.TgTag), "@")
+	return tagA != "" && tagA == tagB
+}
+
+func StripHTML(s string) string {
+	if s == "" {
+		return ""
+	}
+
+	s = htmlBRRe.ReplaceAllString(s, "\n")
+	s = htmlBlockCloseRe.ReplaceAllString(s, "\n")
+	s = htmlTagRe.ReplaceAllString(s, "")
+	s = html.UnescapeString(s)
+	s = spaceBeforeNewlineRe.ReplaceAllString(s, "\n")
+	s = extraNewlineRe.ReplaceAllString(s, "\n\n")
+	return strings.TrimSpace(s)
+}
+
+func TelegramPlain(s string) string {
+	return TelegramEscape(StripHTML(s))
+}
+
+func TelegramPR(pr events.PullRequestInfo) string {
+	if pr.Number > 0 {
+		return TelegramLink(fmt.Sprintf("#%d", pr.Number), pr.URL)
+	}
+	if pr.URL != "" {
+		return TelegramLink("PR", pr.URL)
+	}
+	return TelegramEscape("PR")
+}
+
+func TelegramPRBranches(pr events.PullRequestInfo) string {
+	if strings.TrimSpace(pr.HeadRef) == "" || strings.TrimSpace(pr.BaseRef) == "" {
+		return ""
+	}
+	return TelegramLink(pr.HeadRef, pr.HeadURL) + " → " + TelegramLink(pr.BaseRef, pr.BaseURL)
 }

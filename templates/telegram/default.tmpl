@@ -1,1 +1,2 @@
-\[{{tgLink .Repository .RepositoryURL}}\]{{if .IssueKeys}} \[{{tgIssueURLs .IssueKeys}}\]{{end}} {{tgLink .PullRequest.Title .PullRequest.URL}}
+{{if .PullRequest.Number}}{{tgPR .PullRequest}}
+{{tgPlain .PullRequest.Title}}{{else}}{{tgLink .Repository .RepositoryURL}}{{end}}

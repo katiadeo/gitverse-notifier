@@ -26,6 +26,8 @@ func (e *TelegramLinks) Enrich(_ context.Context, event *events.Event) error {
 	settings := e.manager.SettingsByRepository(event.Repository)
 
 	e.addTgTag(&event.Sender, settings)
+	e.addTgTag(&event.PullRequest.Author, settings)
+	e.addTgTag(&event.Comment.Author, settings)
 	for i := range len(event.PullRequest.Reviewers) {
 		e.addTgTag(&event.PullRequest.Reviewers[i], settings)
 	}

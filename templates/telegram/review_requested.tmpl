@@ -1,1 +1,5 @@
-\[{{tgLink .Repository .RepositoryURL}}\]{{if .IssueKeys}} \[{{tgIssueURLs .IssueKeys}}\]{{end}} Запрошена проверка PR{{if .PullRequest.Number}} \#{{.PullRequest.Number}}{{end}} {{tgLink .PullRequest.Title .PullRequest.URL}}{{if .PullRequest.Reviewers}} от {{tgMentions .PullRequest.Reviewers}}{{end}}
+{{tgPR .PullRequest}} · review requested
+{{tgPlain .PullRequest.Title}}
+{{- if .PullRequest.Reviewers}}
+{{tgMentions .PullRequest.Reviewers}}
+{{- end}}

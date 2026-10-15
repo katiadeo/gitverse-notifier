@@ -43,6 +43,10 @@ type PullRequestInfo struct {
 	Merged    bool
 	Author    Actor
 	URL       string
+	HeadRef   string
+	HeadURL   string
+	BaseRef   string
+	BaseURL   string
 	Reviewers []Actor
 }
 

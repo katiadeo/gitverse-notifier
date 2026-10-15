@@ -1,0 +1,27 @@
+name: deploy to vps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ vars.ENABLE_VPS_DEPLOY == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and rebuild on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -e
+            cd /opt/gitverse-notifier
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
+            docker compose up -d --build
+            curl -fsS http://127.0.0.1:9001/health

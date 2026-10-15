@@ -64,8 +64,14 @@ func funcMap() template.FuncMap {
 		"tgIssueURLs":      TelegramIssueURLs,
 		"mdIssueURLs":      MarkdownIssueURLs,
 		"jiraIssueURLs":    JiraIssueURLs,
+		"plain":            StripHTML,
+		"tgPlain":          TelegramPlain,
+		"tgPR":             TelegramPR,
+		"tgPRBranches":     TelegramPRBranches,
 		"tgMention":        TelegramMention,
 		"tgMentions":       TelegramMentions,
+		"tgMentionOther":   TelegramMentionOther,
+		"tgName":           TelegramName,
 	}
 }
 

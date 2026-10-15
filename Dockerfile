@@ -12,7 +12,7 @@ ENV GO111MODULE=on
 
 WORKDIR /opt/gitverse_notifier
 COPY pkg pkg
-COPY go* .
+COPY go.mod go.sum ./
 COPY main.go .
 COPY config.yml.example .
 COPY entrypoint.sh .

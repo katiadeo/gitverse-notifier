@@ -3,18 +3,40 @@ package parsers
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"gitverse-notifier/pkg/events"
 )
 
 type actorPayload struct {
-	ID    int64  `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	Login   string `json:"login"`
+	Email   string `json:"email"`
+	HTMLURL string `json:"html_url"`
+	URL     string `json:"url"`
 }
 
 func (a actorPayload) toActor() events.Actor {
-	return events.Actor{ID: a.ID, Name: a.Name, Email: a.Email}
+	name := strings.TrimSpace(a.Name)
+	if name == "" {
+		name = strings.TrimSpace(a.Login)
+	}
+	return events.Actor{
+		ID:    a.ID,
+		Name:  name,
+		Email: a.Email,
+		URL:   firstNonEmpty(a.HTMLURL, a.URL),
+	}
+}
+
+func firstActor(actors ...actorPayload) events.Actor {
+	for _, actor := range actors {
+		if parsed := actor.toActor(); parsed != (events.Actor{}) {
+			return parsed
+		}
+	}
+	return events.Actor{}
 }
 
 type repositoryPayload struct {
@@ -58,4 +80,14 @@ func fillCommon(event *events.Event, body []byte) error {
 	}
 
 	return nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

@@ -2,6 +2,7 @@ package enrichers
 
 import (
 	"context"
+	"strings"
 
 	"gitverse-notifier/pkg/events"
 	"gitverse-notifier/pkg/integrations/gitverse"
@@ -51,12 +52,22 @@ func (e *GitversePullRequest) Enrich(ctx context.Context, event *events.Event) e
 }
 
 func applyPullRequest(event *events.Event, pr *gitverse.PullRequest) {
-	event.PullRequest.Number = pr.Number
-	event.PullRequest.Title = pr.Title
-	event.PullRequest.Body = pr.Body
-	event.PullRequest.State = pr.State
+	if pr.Number > 0 {
+		event.PullRequest.Number = pr.Number
+	}
+	if title := strings.TrimSpace(pr.Title); title != "" {
+		event.PullRequest.Title = title
+	}
+	if body := strings.TrimSpace(pr.Body); body != "" {
+		event.PullRequest.Body = body
+	}
+	if state := strings.TrimSpace(pr.State); state != "" {
+		event.PullRequest.State = state
+	}
 	event.PullRequest.Merged = pr.Merged
-	event.PullRequest.URL = pr.URL
+	if html := strings.TrimSpace(pr.HTMLURL); html != "" {
+		event.PullRequest.URL = html
+	}
 
 	if len(pr.RequestedReviewers) > 0 {
 		event.PullRequest.Reviewers = make([]events.Actor, 0, len(pr.RequestedReviewers))
@@ -70,15 +81,34 @@ func applyPullRequest(event *events.Event, pr *gitverse.PullRequest) {
 		}
 	}
 
-	event.PullRequest.Author = events.Actor{
-		ID:    pr.User.ID,
-		Name:  pr.User.Login,
-		Email: pr.User.Email,
-		URL:   pr.User.URL,
+	if pr.User.ID != 0 || strings.TrimSpace(pr.User.Login) != "" {
+		event.PullRequest.Author = events.Actor{
+			ID:    pr.User.ID,
+			Name:  pr.User.Login,
+			Email: pr.User.Email,
+			URL:   pr.User.URL,
+		}
+	}
+
+	if ref := firstNonEmpty(pr.Head.Ref, pr.Head.Label); ref != "" {
+		event.PullRequest.HeadRef = ref
+	}
+	if ref := firstNonEmpty(pr.Base.Ref, pr.Base.Label); ref != "" {
+		event.PullRequest.BaseRef = ref
 	}
 
 	if event.Branch == "" {
-		event.Branch = pr.Head.Label
+		event.Branch = firstNonEmpty(pr.Head.Ref, pr.Head.Label)
 		event.Ref = pr.Head.Ref
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

@@ -1,1 +1,3 @@
-\[{{tgLink .Repository .RepositoryURL}}\]{{if .IssueKeys}} \[{{tgIssueURLs .IssueKeys}}\] {{end}}{{tgLink .PullRequest.Author.Name .PullRequest.Author.URL}} вмержил PR {{tgLink .PullRequest.Title .PullRequest.URL}}
+{{tgPR .PullRequest}} · merged
+{{tgPlain .PullRequest.Title}}
+{{tgName .Sender}}{{with tgPRBranches .PullRequest}} · {{.}}{{end}}

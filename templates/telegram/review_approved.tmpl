@@ -1,1 +1,7 @@
-\[{{tgLink .Repository .RepositoryURL}}\]{{if .IssueKeys}} \[{{tgIssueURLs .IssueKeys}}\]{{end}} PR{{if .PullRequest.Number}} \#{{.PullRequest.Number}}{{end}} {{tgLink .PullRequest.Title .PullRequest.URL}} одобрен пользователем {{tgLink .Sender.Name .Sender.URL}}
+{{tgPR .PullRequest}} · approved
+{{tgPlain .PullRequest.Title}}
+{{tgName .Sender}}
+{{- if .Comment.Body}}
+
+{{tgPlain .Comment.Body}}
+{{- end}}
