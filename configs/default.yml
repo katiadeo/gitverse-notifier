@@ -1,10 +1,9 @@
 repository: any
 
-# Разрешённые коды проектов Jira
+# Разрешённые коды проектов Jira (префикс ключа, например STKPVT).
 # Пустой список — без ограничений.
 allowed_jira_projects:
-  - JIRA
-  - TEST
+  - STKPVT
 
 # Маппинг логинов GitVerse → username в Telegram (без @).
 # gitverse_login: telegram_username
@@ -81,16 +80,16 @@ event_groups: []
 
 # Список действий, выполняемых при получении событий
 action_rules:
-  # Jira / gitverse-комментарии выключены: сервис поднимается только с Telegram.
-  # Раскомментировать, когда появятся JIRA_URL и JIRA_TOKEN.
-  # - on: pull_request.opened
-  #   action: jira.comment_issue
-  #   template: jira/pr_opened
-  # - on: pull_request.opened
-  #   action: jira.mention_at_web
-  # - on: pull_request.opened
-  #   action: gitverse.create_comment
-  #   template: gitverse/jira_issues
+  - on: pull_request.opened
+    action: jira.comment_issue
+    template: jira/pr_opened
+
+  - on: pull_request.opened
+    action: jira.mention_at_web
+
+  - on: pull_request.opened
+    action: gitverse.create_comment
+    template: gitverse/jira_issues
 
   - on: pull_request.opened
     action: telegram.notify
@@ -126,9 +125,9 @@ action_rules:
     action: telegram.notify
     template: telegram/branch_push
 
-  # - on: branch.created
-  #   action: jira.comment_issue
-  #   template: jira/branch_created
+  - on: branch.created
+    action: jira.comment_issue
+    template: jira/branch_created
 
   - on: branch.created
     action: telegram.notify

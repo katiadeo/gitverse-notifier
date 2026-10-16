@@ -44,7 +44,7 @@ func (e *JiraIssueKeys) Enrich(ctx context.Context, event *events.Event) error {
 		}
 
 		if !e.manager.IsJiraCodeAllowed(event.Repository, key) {
-			logger.Debug(ctx, "jira issue key is permited",
+			logger.Debug(ctx, "jira issue key is not allowed",
 				"action", e.Name(),
 				"issue-key", key,
 				"event", event.Type,
