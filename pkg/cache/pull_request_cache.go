@@ -30,17 +30,25 @@ func NewMemoryPullRequestCache() *MemoryPullRequestCache {
 }
 
 func (s *MemoryPullRequestCache) GetByTitle(repo, title string, number int) (pr *gitverse.PullRequest, ok bool) {
+	remembered := s.GetPRNumber(repo, title)
 	if number <= 0 {
-		number = s.GetPRNumber(repo, title)
+		number = remembered
 	}
-
-	value, ok := s.cache.Get(prCacheKey(repo, number))
-	if !ok {
+	if number <= 0 {
 		return nil, false
 	}
 
-	pr, ok = value.(*gitverse.PullRequest)
-	return
+	value, ok := s.cache.Get(prCacheKey(repo, number))
+	if ok {
+		pr, ok = value.(*gitverse.PullRequest)
+		if ok {
+			return pr, true
+		}
+	}
+	if remembered > 0 {
+		return gitverse.NewStubPullRequest(repo, title, number), true
+	}
+	return nil, false
 }
 
 func (s *MemoryPullRequestCache) Set(repo, title string, number int, pr *gitverse.PullRequest) {

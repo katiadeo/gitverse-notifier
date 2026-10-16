@@ -1,3 +1,4 @@
+# extra_hosts for GitVerse API: scripts/gitverse-extra-hosts.sh → docker-compose.override.yml
 services:
   gitverse-notifier:
     build:

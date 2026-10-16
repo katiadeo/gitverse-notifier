@@ -12,6 +12,8 @@ type actorPayload struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
 	Login    string `json:"login"`
+	Username string `json:"username"`
+	UserName string `json:"userName"`
 	FullName string `json:"full_name"`
 	Email    string `json:"email"`
 	HTMLURL  string `json:"html_url"`
@@ -19,8 +21,8 @@ type actorPayload struct {
 }
 
 func (a actorPayload) toActor() events.Actor {
-	login := firstNonEmpty(a.Login, a.Name)
-	name := firstNonEmpty(a.FullName, a.Name, a.Login)
+	login := firstNonEmpty(a.Login, a.Username, a.UserName, a.Name)
+	name := firstNonEmpty(a.FullName, a.Name, a.Login, a.Username, a.UserName)
 	return events.Actor{
 		ID:    a.ID,
 		Name:  name,
@@ -40,10 +42,12 @@ func firstActor(actors ...actorPayload) events.Actor {
 }
 
 type repositoryPayload struct {
-	FullName      string `json:"fullName"`
-	FullNameSnake string `json:"full_name"`
-	Name          string `json:"name"`
-	Owner         struct {
+	FullName       string `json:"fullName"`
+	FullNameSnake  string `json:"full_name"`
+	Name           string `json:"name"`
+	OwnerName      string `json:"ownerName"`
+	OwnerNameSnake string `json:"owner_name"`
+	Owner          struct {
 		Login    string `json:"login"`
 		Name     string `json:"name"`
 		Username string `json:"username"`
@@ -55,7 +59,7 @@ func (r repositoryPayload) repositoryName() string {
 	if name := firstNonEmpty(r.FullName, r.FullNameSnake); name != "" {
 		return name
 	}
-	owner := firstNonEmpty(r.Owner.Login, r.Owner.Username, r.Owner.UserName, r.Owner.Name)
+	owner := firstNonEmpty(r.OwnerName, r.OwnerNameSnake, r.Owner.Login, r.Owner.Username, r.Owner.UserName, r.Owner.Name)
 	if owner != "" && strings.TrimSpace(r.Name) != "" {
 		return owner + "/" + strings.TrimSpace(r.Name)
 	}

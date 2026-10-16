@@ -13,27 +13,30 @@ var (
 	pullsURLRe     = regexp.MustCompile(`(?i)https?://[^\s"'<>]+/(?:pulls?|pull-requests?|merge[_-]?requests?|issues)/\d+`)
 	pullsNumberRe  = regexp.MustCompile(`(?i)/(?:pulls?|pull-requests?|merge[_-]?requests?|issues)/(\d+)`)
 	apiRepoURLRe   = regexp.MustCompile(`^(https?://[^/]+)(?:/api/v\d+)?/repos/([^/]+/[^/]+)/(?:issues|pulls)/(\d+)`)
-	uiRepoURLRe    = regexp.MustCompile(`^https?://[^/]+/([^/]+/[^/]+)/(?:pulls?|issues)/\d+`)
+	uiRepoURLRe    = regexp.MustCompile(`^(?:https?://[^/]+)?/([^/]+/[^/]+)/(?:pulls?|issues|merge[_-]?requests?)/\d+`)
 	issuePathNumRe = regexp.MustCompile(`/issues/(\d+)$`)
 	mentionRe      = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_-]+)`)
 )
 
 type issueCommentPayload struct {
-	IsPull      bool `json:"isPull"`
-	IsPullSnake bool `json:"is_pull"`
+	IsPull      bool    `json:"isPull"`
+	IsPullSnake bool    `json:"is_pull"`
 	Number      flexInt `json:"number"`
 	Issue       struct {
-		Number      flexInt                `json:"number"`
-		Index       flexInt                `json:"index"`
-		IID         flexInt                `json:"iid"`
-		Title       string                 `json:"title"`
-		Body        string                 `json:"body"`
-		State       string                 `json:"state"`
-		HTMLURL     string                 `json:"html_url"`
-		HTMLUrl     string                 `json:"htmlUrl"`
-		URL         string                 `json:"url"`
-		User        actorPayload           `json:"user"`
-		PullRequest pullRequestBodyPayload `json:"pull_request"`
+		Number           flexInt                `json:"number"`
+		Index            flexInt                `json:"index"`
+		IID              flexInt                `json:"iid"`
+		Title            string                 `json:"title"`
+		Body             string                 `json:"body"`
+		State            string                 `json:"state"`
+		HTMLURL          string                 `json:"html_url"`
+		HTMLUrl          string                 `json:"htmlUrl"`
+		WebURL           string                 `json:"web_url"`
+		WebUrl           string                 `json:"webUrl"`
+		URL              string                 `json:"url"`
+		User             actorPayload           `json:"user"`
+		PullRequest      pullRequestBodyPayload `json:"pullRequest"`
+		PullRequestSnake pullRequestBodyPayload `json:"pull_request"`
 	} `json:"issue"`
 	PullRequest      pullRequestBodyPayload `json:"pullRequest"`
 	PullRequestSnake pullRequestBodyPayload `json:"pull_request"`
@@ -42,6 +45,8 @@ type issueCommentPayload struct {
 		User           actorPayload `json:"user"`
 		HTMLURL        string       `json:"html_url"`
 		HTMLUrl        string       `json:"htmlUrl"`
+		WebURL         string       `json:"web_url"`
+		WebUrl         string       `json:"webUrl"`
 		URL            string       `json:"url"`
 		PullRequestURL string       `json:"pull_request_url"`
 		PullRequestUrl string       `json:"pullRequestUrl"`
@@ -52,7 +57,7 @@ type issueCommentPayload struct {
 }
 
 func (p issueCommentPayload) pr() pullRequestBodyPayload {
-	if p.PullRequest.Number.Int() > 0 || p.PullRequest.Title != "" || p.PullRequest.url() != "" {
+	if p.PullRequest.number() > 0 || p.PullRequest.Title != "" || p.PullRequest.url() != "" {
 		return p.PullRequest
 	}
 	return p.PullRequestSnake
@@ -74,18 +79,26 @@ func fillIssueComment(event *events.Event, body []byte) error {
 	event.Comment.Mentions = mentionsFrom(payload.Comment.Body, event.Comment.Author)
 
 	pr := payload.pr()
-	isPR := payload.IsPull || payload.IsPullSnake || payload.Issue.Title != "" || payload.Issue.Number.Int() > 0 || pr.Number.Int() > 0 || pullsURLRe.Match(body)
+	issuePR := payload.Issue.PullRequest
+	if issuePR.number() == 0 && issuePR.url() == "" && issuePR.Title == "" {
+		issuePR = payload.Issue.PullRequestSnake
+	}
+	isPR := payload.IsPull || payload.IsPullSnake || payload.Issue.Title != "" || payload.Issue.Number.Int() > 0 || payload.Issue.Index.Int() > 0 || pr.number() > 0 || issuePR.number() > 0 || pullsURLRe.Match(body)
 	if isPR {
 		url := firstNonEmpty(
 			pr.url(),
+			issuePR.url(),
 			toPullHTMLURL(payload.Issue.HTMLURL),
 			toPullHTMLURL(payload.Issue.HTMLUrl),
+			toPullHTMLURL(payload.Issue.WebURL),
+			toPullHTMLURL(payload.Issue.WebUrl),
 			toPullHTMLURL(payload.Issue.URL),
-			payload.Issue.PullRequest.url(),
 			toPullHTMLURL(payload.Comment.PullRequestURL),
 			toPullHTMLURL(payload.Comment.PullRequestUrl),
 			toPullHTMLURL(payload.Comment.HTMLURL),
 			toPullHTMLURL(payload.Comment.HTMLUrl),
+			toPullHTMLURL(payload.Comment.WebURL),
+			toPullHTMLURL(payload.Comment.WebUrl),
 			toPullHTMLURL(payload.Comment.URL),
 			toPullHTMLURL(payload.Comment.IssueURL),
 			toPullHTMLURL(payload.Comment.IssueUrl),
@@ -93,7 +106,8 @@ func fillIssueComment(event *events.Event, body []byte) error {
 		)
 		event.PullRequest = events.PullRequestInfo{
 			Number: firstPositive(
-				pr.Number.Int(),
+				pr.number(),
+				issuePR.number(),
 				payload.Issue.Number.Int(),
 				payload.Issue.Index.Int(),
 				payload.Issue.IID.Int(),
@@ -117,7 +131,7 @@ func fillIssueComment(event *events.Event, body []byte) error {
 			Author:  firstActor(payload.Issue.User, pr.User),
 			HeadRef: firstNonEmpty(pr.Head.Ref, pr.Head.Label),
 			BaseRef: firstNonEmpty(pr.Base.Ref, pr.Base.Label),
-			Merged:  pr.Merged || payload.Issue.PullRequest.Merged,
+			Merged:  pr.Merged || issuePR.Merged,
 		}
 		if event.Repository == "" {
 			event.Repository = RepoPathFromURL(

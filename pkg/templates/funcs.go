@@ -137,10 +137,17 @@ func TelegramMention(actor events.Actor) string {
 }
 
 func TelegramName(actor events.Actor) string {
-	if tag := strings.TrimPrefix(actor.TgTag, "@"); tag != "" {
-		return TelegramLink(tag, "https://t.me/"+tag)
+	text := strings.TrimSpace(actor.Name)
+	if text == "" {
+		text = strings.TrimSpace(actor.Login)
 	}
-	return TelegramLink(actor.Name, actor.URL)
+	if tag := strings.TrimPrefix(actor.TgTag, "@"); tag != "" {
+		if text == "" {
+			text = tag
+		}
+		return TelegramLink(text, "https://t.me/"+tag)
+	}
+	return TelegramLink(text, actor.URL)
 }
 
 func TelegramMentions(actors []events.Actor) string {

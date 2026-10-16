@@ -28,7 +28,7 @@ func TestTelegramMention(t *testing.T) {
 func TestTelegramName(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 
-	require.Equal(t, "[alice\\_tg](https://t.me/alice_tg)", TelegramName(events.Actor{
+	require.Equal(t, "[alice](https://t.me/alice_tg)", TelegramName(events.Actor{
 		Name:  "alice",
 		URL:   "https://git.example/u/alice",
 		TgTag: "alice_tg",
@@ -204,7 +204,7 @@ func TestRenderTelegramPRComment(t *testing.T) {
 APP\-1183 \[FE\] Доработать форму
 
 PR author: [bob](https://git.example/bob)
-Comment: alice
+Comment: [alice](https://t.me/alice)
 
 Тогда `+"`z.array(z.string()).min(1, 'Обязательное поле')`"+`
 `, body)

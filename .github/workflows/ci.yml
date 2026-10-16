@@ -63,6 +63,7 @@ jobs:
             else
               echo "NOTIFIER_CONFIG secret is empty; keeping existing config.yml"
             fi
+            ./scripts/gitverse-extra-hosts.sh
             docker compose up -d --build --force-recreate
             for i in $(seq 1 20); do
               if curl -fsS http://127.0.0.1:9001/health; then
