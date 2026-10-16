@@ -63,6 +63,10 @@ func (e *JiraIssueKeys) Enrich(ctx context.Context, event *events.Event) error {
 		add(key)
 	}
 
+	for _, key := range issueKeysInText(event.Comment.Body) {
+		add(key)
+	}
+
 	for _, key := range issueKeysInText(event.Push.CommitTitle) {
 		add(key)
 	}

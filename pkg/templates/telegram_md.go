@@ -4,15 +4,20 @@ import (
 	"html"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
 var (
-	htmlPreRe    = regexp.MustCompile(`(?is)<pre[^>]*>(.*?)</pre>`)
-	htmlCodeRe   = regexp.MustCompile(`(?is)<code[^>]*>(.*?)</code>`)
-	htmlARe      = regexp.MustCompile(`(?is)<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>`)
-	htmlStrongRe = regexp.MustCompile(`(?is)<(strong|b)[^>]*>(.*?)</(?:strong|b)>`)
-	htmlEmRe     = regexp.MustCompile(`(?is)<(em|i)[^>]*>(.*?)</(?:em|i)>`)
+	htmlPreRe         = regexp.MustCompile(`(?is)<pre[^>]*>(.*?)</pre>`)
+	htmlCodeRe        = regexp.MustCompile(`(?is)<code[^>]*>(.*?)</code>`)
+	htmlARe           = regexp.MustCompile(`(?is)<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>`)
+	htmlStrongRe      = regexp.MustCompile(`(?is)<(strong|b)[^>]*>(.*?)</(?:strong|b)>`)
+	htmlEmRe          = regexp.MustCompile(`(?is)<(em|i)[^>]*>(.*?)</(?:em|i)>`)
+	htmlURe           = regexp.MustCompile(`(?is)<u[^>]*>(.*?)</u>`)
+	htmlStrikeRe      = regexp.MustCompile(`(?is)<(s|del|strike)[^>]*>(.*?)</(?:s|del|strike)>`)
+	mdHeadingRe       = regexp.MustCompile(`(?m)^#{1,6}[ \t]+`)
+	mdIssueKeyStartRe = regexp.MustCompile(`^[A-Z][A-Z0-9]+-\d+`)
 )
 
 // TelegramMD converts GitVerse markdown/HTML comment text into Telegram MarkdownV2,
@@ -21,7 +26,8 @@ func TelegramMD(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return ""
 	}
-	return mdToTelegramV2(htmlToMarkdownish(s))
+	s = mdHeadingRe.ReplaceAllString(htmlToMarkdownish(s), "")
+	return mdToTelegramV2(s)
 }
 
 func htmlToMarkdownish(s string) string {
@@ -68,6 +74,20 @@ func htmlToMarkdownish(s string) string {
 		}
 		return `*` + StripHTML(parts[2]) + `*`
 	})
+	s = htmlURe.ReplaceAllStringFunc(s, func(m string) string {
+		parts := htmlURe.FindStringSubmatch(m)
+		if len(parts) < 2 {
+			return m
+		}
+		return `__` + StripHTML(parts[1]) + `__`
+	})
+	s = htmlStrikeRe.ReplaceAllStringFunc(s, func(m string) string {
+		parts := htmlStrikeRe.FindStringSubmatch(m)
+		if len(parts) < 3 {
+			return m
+		}
+		return `~~` + StripHTML(parts[2]) + `~~`
+	})
 	s = htmlBlockCloseRe.ReplaceAllString(s, "\n")
 	s = htmlTagRe.ReplaceAllString(s, "")
 	s = html.UnescapeString(s)
@@ -81,6 +101,45 @@ func mdToTelegramV2(s string) string {
 	b.Grow(len(s) + 16)
 
 	for i := 0; i < len(s); {
+		if inner, next, ok := mdSpan(s, i, "***"); ok {
+			writeTGSpan(&b, "*_", "_*", inner)
+			i = next
+			continue
+		}
+		if inner, next, ok := mdSpan(s, i, "**"); ok {
+			writeTGSpan(&b, "*", "*", inner)
+			i = next
+			continue
+		}
+		if inner, next, ok := mdSpan(s, i, "__"); ok {
+			writeTGSpan(&b, "__", "__", inner)
+			i = next
+			continue
+		}
+		if inner, next, ok := mdSpan(s, i, "~~"); ok {
+			writeTGSpan(&b, "~", "~", inner)
+			i = next
+			continue
+		}
+		if inner, next, ok := mdEmph(s, i, '*'); ok {
+			writeTGSpan(&b, "_", "_", inner)
+			i = next
+			continue
+		}
+		if inner, next, ok := mdEmph(s, i, '_'); ok {
+			writeTGSpan(&b, "_", "_", inner)
+			i = next
+			continue
+		}
+		if key := mdIssueKeyStartRe.FindString(s[i:]); key != "" && mdIssueKeyBoundary(s, i) {
+			if url := IssueURL(key); url != "" {
+				b.WriteString(TelegramLink(key, url))
+			} else {
+				b.WriteString(escapeMarkdownV2(key))
+			}
+			i += len(key)
+			continue
+		}
 		if strings.HasPrefix(s[i:], "```") {
 			end := strings.Index(s[i+3:], "```")
 			if end >= 0 {
@@ -129,4 +188,61 @@ func mdToTelegramV2(s string) string {
 
 func escapeTelegramCode(s string) string {
 	return strings.NewReplacer("\\", "\\\\", "`", "\\`").Replace(s)
+}
+
+func writeTGSpan(b *strings.Builder, open, close, inner string) {
+	b.WriteString(open)
+	b.WriteString(mdToTelegramV2(inner))
+	b.WriteString(close)
+}
+
+func mdSpan(s string, i int, delim string) (string, int, bool) {
+	if !strings.HasPrefix(s[i:], delim) {
+		return "", i, false
+	}
+	end := strings.Index(s[i+len(delim):], delim)
+	if end < 0 {
+		return "", i, false
+	}
+	return s[i+len(delim) : i+len(delim)+end], i + 2*len(delim) + end, true
+}
+
+func mdEmph(s string, i int, delim byte) (string, int, bool) {
+	if i >= len(s) || s[i] != delim {
+		return "", i, false
+	}
+	if i+1 >= len(s) || s[i+1] == delim || s[i+1] == ' ' {
+		return "", i, false
+	}
+	if i > 0 {
+		prev, _ := utf8.DecodeLastRuneInString(s[:i])
+		if unicode.IsLetter(prev) || unicode.IsDigit(prev) {
+			return "", i, false
+		}
+	}
+	for j := i + 1; j < len(s); j++ {
+		if s[j] != delim {
+			continue
+		}
+		inner := s[i+1 : j]
+		if inner == "" || strings.HasSuffix(inner, " ") {
+			return "", i, false
+		}
+		if j+1 < len(s) {
+			next, _ := utf8.DecodeRuneInString(s[j+1:])
+			if unicode.IsLetter(next) || unicode.IsDigit(next) {
+				continue
+			}
+		}
+		return inner, j + 1, true
+	}
+	return "", i, false
+}
+
+func mdIssueKeyBoundary(s string, i int) bool {
+	if i == 0 {
+		return true
+	}
+	r, _ := utf8.DecodeLastRuneInString(s[:i])
+	return r != utf8.RuneError && !unicode.IsLetter(r) && !unicode.IsDigit(r)
 }

@@ -68,11 +68,29 @@ if grep -Eq '^GITVERSE_API_URL:[[:space:]]*$' "$file" || grep -Eq '^TELEGRAM_BOT
   exit 1
 fi
 
-gh secret set NOTIFIER_CONFIG --app actions < "$file"
+# gh refuses to guess when origin and upstream both point at GitHub.
+github_repo() {
+  local url
+  url="$(git remote get-url origin 2>/dev/null || true)"
+  url="${url%.git}"
+  case "$url" in
+    git@github.com:*) echo "${url#git@github.com:}" ;;
+    ssh://git@github.com/*) echo "${url#ssh://git@github.com/}" ;;
+    https://github.com/*) echo "${url#https://github.com/}" ;;
+    *)
+      echo "remote origin не указывает на GitHub: ${url:-<пусто>}" >&2
+      return 1
+      ;;
+  esac
+}
+
+repo="$(github_repo)"
+
+gh secret set NOTIFIER_CONFIG --repo "$repo" --app actions < "$file"
 current_hash > "$stamp"
-echo "GitHub secret NOTIFIER_CONFIG обновлён."
+echo "GitHub secret NOTIFIER_CONFIG обновлён в $repo."
 
 if [[ "$do_deploy" -eq 1 ]]; then
-  gh workflow run "build and deploy"
-  echo "Запущен workflow build and deploy — он перезапишет config.yml на VPS и пересоберёт контейнер."
+  gh workflow run "build and deploy" --repo "$repo"
+  echo "Запущен workflow build and deploy в $repo — он перезапишет config.yml на VPS и пересоберёт контейнер."
 fi

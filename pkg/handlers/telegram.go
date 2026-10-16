@@ -51,7 +51,8 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 		return nil
 	}
 
-	if rule.SkipEmpty && templates.StripHTML(event.Comment.Body) == "" {
+	if rule.SkipEmpty && templates.StripHTML(event.Comment.Body) == "" &&
+		strings.ToLower(strings.TrimSpace(event.Action)) != "deleted" {
 		logger.Info(ctx, "skipping empty telegram comment",
 			"action", a.Name(),
 			"event", event.Type,
@@ -88,7 +89,7 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 
 func shouldNotifyPRComment(action string) bool {
 	switch strings.ToLower(strings.TrimSpace(action)) {
-	case "", "created", "create", "edited", "edit":
+	case "", "created", "create", "edited", "edit", "deleted", "delete":
 		return true
 	default:
 		return false

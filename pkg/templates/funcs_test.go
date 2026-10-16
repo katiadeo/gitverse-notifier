@@ -131,6 +131,25 @@ func TestTelegramMD(t *testing.T) {
 
 	got = TelegramMD(`<p>Смотри <code>foo.bar()</code> и <a href="https://example.com">ссылка</a></p>`)
 	require.Equal(t, "Смотри `foo.bar()` и [ссылка](https://example.com)", got)
+
+	config.GlobalConfig.JiraURL = "https://jira.example.com"
+	got = TelegramMD("#### **STKPVT-1184**")
+	require.Equal(t, "*[STKPVT\\-1184](https://jira.example.com/browse/STKPVT-1184)*", got)
+
+	got = TelegramMD("hello **bold**")
+	require.Equal(t, "hello *bold*", got)
+
+	got = TelegramMD("hello *italic* and _also_")
+	require.Equal(t, "hello _italic_ and _also_", got)
+
+	got = TelegramMD("~~old~~ and <u>under</u>")
+	require.Equal(t, "~old~ and __under__", got)
+
+	got = TelegramMD("```\nline 1\nline 2\n```")
+	require.Equal(t, "```line 1\nline 2```", got)
+
+	got = TelegramMD("leave foo_bar alone")
+	require.Equal(t, "leave foo\\_bar alone", got)
 }
 
 func TestTelegramCommentRecipients(t *testing.T) {

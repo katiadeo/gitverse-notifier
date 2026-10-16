@@ -38,7 +38,7 @@ docker compose up -d
 Одного коммита мало — нужен **`git push` в `main`**.
 
 1. Коммитите код и пушите в `main`.
-2. На вашей машине, **до** отправки в GitHub, хук смотрит, менялся ли `config.yml` (сравнивается хеш в `.git/`, сам файл в коммит не попадает). Если да — заливает его в secret `NOTIFIER_CONFIG`. Скрипт на VPS не запускается.
+2. На вашей машине, **до** отправки в GitHub, хук смотрит, менялся ли `config.yml` (сравнивается хеш в `.git/`, сам файл в коммит не попадает). Если да — заливает его в secret `NOTIFIER_CONFIG` репозитория из remote `origin`. Скрипт на VPS не запускается.
 3. В GitHub Actions один workflow **build and deploy**: сначала **Test**, затем **Deploy to VPS**. На pull request будет только Test.
 4. Деплой на сервере берёт `config.yml` из секрета, перезаписывает файл и пересобирает контейнер.
 
@@ -55,6 +55,32 @@ make sync-config DEPLOY=1
 ```bash
 make sync-config
 ```
+
+Обе команды пишут секрет в репозиторий remote `origin`. Если есть ещё и `upstream`, он не используется. На машине нужен [GitHub CLI](https://cli.github.com/) и вход `gh auth login`: Personal Access Token (classic) со scope `repo`, `workflow`, `read:org` ([создать](https://github.com/settings/tokens/new)). Это токен вашего аккаунта GitHub. В `config.yml` и в git он не кладётся, другому человеку его не передают — он заводит свой.
+
+### Секреты, токены и ключи
+
+Четыре разных места. Их нельзя подменять друг другом.
+
+**`config.yml` — секреты бота.** В git не коммитится. На VPS приезжает целиком как Actions secret `NOTIFIER_CONFIG` (отдельное значение придумывать не надо, его записывает `make sync-config`). Поля — в таблице ниже. Обязательные для работы бота: `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`, `GITVERSE_TOKEN` вместе с `GITVERSE_API_URL` и `GITVERSE_BASE_URL`, `JIRA_TOKEN` либо пара `JIRA_USERNAME` / `JIRA_PASSWORD` и `JIRA_URL`. `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` нужны, только если webhook закрыт паролем.
+
+**GitHub → Settings → Secrets and variables → Actions** репозитория `origin`:
+
+| Имя | Где | Зачем |
+|---|---|---|
+| `NOTIFIER_CONFIG` | Secrets | копия `config.yml` |
+| `VPS_HOST` | Secrets | адрес сервера |
+| `VPS_USER` | Secrets | пользователь SSH |
+| `VPS_SSH_KEY` | Secrets | приватный ключ, которым Actions заходит на VPS. Публичная часть лежит в `authorized_keys` на сервере. Это не ключ для `git push` |
+| `ENABLE_VPS_DEPLOY` = `true` | Variables | без неё job Deploy to VPS не запускается |
+
+`GITHUB_TOKEN` для публикации образа в GHCR GitHub подставляет сам, создавать его не нужно.
+
+**На машине, с которой пушите.** SSH-ключ для `git push` и PAT для `gh auth login`. Оба остаются у владельца машины. При `gh auth login` загрузку SSH-ключа в GitHub можно пропустить, если ключ для push уже есть.
+
+**На VPS.** Workflow делает `git fetch` и отдельный токен туда не передаёт. На сервере уже должен быть свой доступ к репозиторию (обычно deploy key). Новому человеку нужен вход на VPS, а не копия этого ключа. `brew` и `gh` на сервере не нужны.
+
+**Если бота передаёте:** `config.yml`, доступ к репозиторию GitHub (секреты из таблицы выше) и доступ на VPS. Свой PAT и свой SSH-ключ для GitHub оставляете себе.
 
 Ключи можно задать в `config.yml` или переменными окружения:
 

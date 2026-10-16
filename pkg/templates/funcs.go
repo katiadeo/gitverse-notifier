@@ -216,7 +216,11 @@ func StripHTML(s string) string {
 }
 
 func TelegramPlain(s string) string {
-	return TelegramEscape(StripHTML(s))
+	s = StripHTML(s)
+	if strings.TrimSpace(s) == "" {
+		return ""
+	}
+	return mdToTelegramV2(s)
 }
 
 func TelegramPR(pr events.PullRequestInfo) string {

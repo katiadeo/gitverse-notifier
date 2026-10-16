@@ -1,4 +1,4 @@
-{{tgPR .PullRequest}}{{if eq .Action "edited"}} · edited{{end}}
+{{tgPR .PullRequest}}{{if or (eq .Action "edited") (eq .Action "deleted")}} · {{.Action}}{{end}}
 {{tgPlain .PullRequest.Title}}
 
 PR author: {{tgMention .PullRequest.Author}}
