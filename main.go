@@ -106,7 +106,7 @@ func buildEventPipeline(ctx context.Context) *pipeline.Pipeline {
 		handlers.NewJiraCommentIssue(jiraClient, engine),
 		handlers.NewJiraMentionAtWeb(jiraClient),
 		handlers.NewGitverseCreateComment(gitverseClient, engine),
-		handlers.NewTelegramNotify(tgClient, engine),
+		handlers.NewTelegramNotify(tgClient, engine, cache.NewTelegramPRThreads()),
 		handlers.NewUtilsLog(),
 	)
 }

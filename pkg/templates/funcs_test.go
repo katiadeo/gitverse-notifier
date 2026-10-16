@@ -108,9 +108,8 @@ func TestRenderTelegramReviewRequested(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `[\#281](https://git.example/org/app/pulls/281) · review requested
+	require.Equal(t, `[\#281](https://git.example/org/app/pulls/281) · review requested · @alice
 APP\-281: deploy guide
-@alice
 `, body)
 }
 
@@ -181,12 +180,19 @@ func TestRenderTelegramPRComment(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `[\#412](https://git.example/org/app/pulls/412)
+	require.Equal(t, `[\#412](https://git.example/org/app/pulls/412) · comment by [alice](https://t.me/alice)
 APP\-1183 \[FE\] Доработать форму
-
-PR author: [bob](https://git.example/bob)
-Comment: [alice](https://t.me/alice)
 `, body)
+
+	reply, err := engine.Render("telegram/pr_comment", Data{
+		ThreadReply: true,
+		Comment: events.CommentInfo{
+			Author: events.Actor{Name: "alice", Login: "alice", TgTag: "alice"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, `comment by [alice](https://t.me/alice)
+`, reply)
 }
 
 func TestRenderTelegramPROpened(t *testing.T) {
@@ -212,8 +218,7 @@ func TestRenderTelegramPROpened(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `[\#218](https://git.example/org/app/pulls/218) · opened
+	require.Equal(t, `[\#218](https://git.example/org/app/pulls/218) · opened by [alice](https://git.example/alice)
 APP\-1237 \[FE\] Доработка
-[alice](https://git.example/alice) · [APP\-1237](https://git.example/org/app/src/branch/APP-1237) → [develop](https://git.example/org/app/src/branch/develop)
 `, body)
 }

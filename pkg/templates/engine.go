@@ -27,6 +27,7 @@ type Data struct {
 	Push          events.PushInfo
 	Status        events.StatusInfo
 	IssueKeys     []string
+	ThreadReply   bool
 }
 
 func DataFromEvent(ev *events.Event) Data {

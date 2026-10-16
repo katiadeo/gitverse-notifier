@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"gitverse-notifier/pkg/cache"
 	"gitverse-notifier/pkg/events"
 	"gitverse-notifier/pkg/integrations/telegram"
 	"gitverse-notifier/pkg/logger"
@@ -21,10 +22,11 @@ const (
 type TelegramNotify struct {
 	client    *telegram.Client
 	templates *templates.Engine
+	threads   *cache.TelegramPRThreads
 }
 
-func NewTelegramNotify(client *telegram.Client, engine *templates.Engine) *TelegramNotify {
-	return &TelegramNotify{client: client, templates: engine}
+func NewTelegramNotify(client *telegram.Client, engine *templates.Engine, threads *cache.TelegramPRThreads) *TelegramNotify {
+	return &TelegramNotify{client: client, templates: engine, threads: threads}
 }
 
 func (a *TelegramNotify) Name() string {
@@ -60,7 +62,15 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 		return nil
 	}
 
-	body, err := a.templates.Render(name, templates.DataFromEvent(event))
+	rootID := 0
+	if isPRThreadEvent(event.Type) {
+		rootID = a.threads.Get(event.Repository, event.PullRequest.Title, event.PullRequest.Number)
+	}
+	replyTo, bindRoot := telegramThreadPlan(event.Type, rootID)
+
+	data := templates.DataFromEvent(event)
+	data.ThreadReply = replyTo > 0
+	body, err := a.templates.Render(name, data)
 	if err != nil {
 		return fmt.Errorf("failed to redener template %s: %w", name, err)
 	}
@@ -80,10 +90,15 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 		"body", body,
 		"pr-number", event.PullRequest.Number,
 		"pr-url", event.PullRequest.URL,
+		"reply-to", replyTo,
 	)
 
-	if err := a.client.SendMessage(ctx, body); err != nil {
+	id, err := a.client.SendMessage(ctx, body, replyTo)
+	if err != nil {
 		return err
+	}
+	if bindRoot && id > 0 {
+		a.threads.Put(event.Repository, event.PullRequest.Title, event.PullRequest.Number, id)
 	}
 
 	logger.Info(ctx, "successfully sent telegram notification",
@@ -91,8 +106,33 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 		"event", event.Type,
 		"template", name,
 		"repository", event.Repository,
+		"reply-to", replyTo,
+		"message-id", id,
 	)
 	return nil
+}
+
+func isPRThreadEvent(t events.EventType) bool {
+	switch t {
+	case events.PullRequestOpened, events.PullRequestClosed, events.PullRequestComment,
+		events.PullRequestReviewRequested, events.PullRequestReviewApproved, events.PullRequestReviewRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+func telegramThreadPlan(eventType events.EventType, rootID int) (replyTo int, bindRoot bool) {
+	if !isPRThreadEvent(eventType) {
+		return 0, false
+	}
+	if eventType == events.PullRequestOpened {
+		return 0, true
+	}
+	if rootID > 0 {
+		return rootID, false
+	}
+	return 0, true
 }
 
 func shouldNotifyPRComment(action string) bool {

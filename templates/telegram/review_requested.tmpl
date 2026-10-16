@@ -1,5 +1,2 @@
-{{tgPR .PullRequest}} · review requested
+{{tgPR .PullRequest}} · review requested{{if .PullRequest.Reviewers}} · {{tgMentions .PullRequest.Reviewers}}{{end}}
 {{tgPlain .PullRequest.Title}}
-{{- if .PullRequest.Reviewers}}
-{{tgMentions .PullRequest.Reviewers}}
-{{- end}}

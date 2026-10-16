@@ -72,9 +72,9 @@ func botOptions(proxyURL string) ([]bot.Option, error) {
 	}, nil
 }
 
-func (c *Client) SendMessage(ctx context.Context, text string) error {
+func (c *Client) SendMessage(ctx context.Context, text string, replyTo int) (int, error) {
 	disabled := true
-	if _, err := c.bot.SendMessage(ctx, &bot.SendMessageParams{
+	params := &bot.SendMessageParams{
 		ChatID:          c.chatID,
 		MessageThreadID: c.threadID,
 		Text:            text,
@@ -82,9 +82,20 @@ func (c *Client) SendMessage(ctx context.Context, text string) error {
 		LinkPreviewOptions: &models.LinkPreviewOptions{
 			IsDisabled: &disabled,
 		},
-	}); err != nil {
-		return fmt.Errorf("failed to send telegram message to %s: %w", c.chatID, err)
+	}
+	if replyTo > 0 {
+		params.ReplyParameters = &models.ReplyParameters{
+			MessageID:                replyTo,
+			AllowSendingWithoutReply: true,
+		}
 	}
 
-	return nil
+	msg, err := c.bot.SendMessage(ctx, params)
+	if err != nil {
+		return 0, fmt.Errorf("failed to send telegram message to %s: %w", c.chatID, err)
+	}
+	if msg == nil {
+		return 0, nil
+	}
+	return msg.ID, nil
 }
