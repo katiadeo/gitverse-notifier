@@ -24,4 +24,12 @@ jobs:
             git checkout main
             git reset --hard origin/main
             docker compose up -d --build --force-recreate
-            curl -fsS http://127.0.0.1:9001/health
+            for i in $(seq 1 20); do
+              if curl -fsS http://127.0.0.1:9001/health; then
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "health check failed"
+            docker compose logs --tail=80
+            exit 1
