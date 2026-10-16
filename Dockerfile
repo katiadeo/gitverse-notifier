@@ -1,24 +1,25 @@
 FROM golang:1.27.1-trixie AS stage-build
 
 ARG TARGETARCH
-ARG VERSION
-ARG COMMIT
 
-ENV VERSION=$VERSION
 ENV GOPATH=/go
 ENV PATH=/go/bin:/usr/local/go/bin:$PATH
 ENV CGO_ENABLED=0
 ENV GO111MODULE=on
 
 WORKDIR /opt/gitverse_notifier
-COPY pkg pkg
 COPY go.mod go.sum ./
+RUN go mod download -x
+
+COPY pkg pkg
 COPY main.go .
 COPY config.yml.example .
 COPY entrypoint.sh .
 COPY Makefile .
 
-RUN go mod download -x
+ARG VERSION
+ARG COMMIT
+ENV VERSION=$VERSION
 
 RUN make build -s COMMIT=${COMMIT} VERSION=${VERSION} \
     && set -x && ls -al . \

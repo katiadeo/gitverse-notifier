@@ -64,7 +64,11 @@ jobs:
               echo "NOTIFIER_CONFIG secret is empty; keeping existing config.yml"
             fi
             bash scripts/gitverse-extra-hosts.sh
-            docker compose up -d --build --force-recreate
+            # --build reuses Docker layer cache (golang image, go mod, unchanged
+            # packages). Recreate only if the image id actually changed.
+            docker compose up -d --build --remove-orphans
+            # dangling images only; keep golang/debian so the next build is a cache hit
+            docker image prune -f
             for i in $(seq 1 20); do
               if curl -fsS http://127.0.0.1:9001/health; then
                 echo "health ok"
