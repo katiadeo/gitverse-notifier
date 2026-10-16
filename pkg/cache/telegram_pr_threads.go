@@ -26,6 +26,7 @@ type TelegramPRCard struct {
 	URL        string         `json:"url"`
 	PRAuthor   events.Actor   `json:"pr_author"`
 	Authors    []events.Actor `json:"authors"`
+	Rich       bool           `json:"rich,omitempty"`
 }
 
 type TelegramPRThreads struct {

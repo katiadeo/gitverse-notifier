@@ -44,6 +44,10 @@ func TestTelegramNotifyAuthor(t *testing.T) {
 		[]events.CommentInfo{{Author: events.Actor{TgTag: "alice"}}},
 		events.Actor{TgTag: "bob"},
 	))
+	require.Equal(t, "@bob", TelegramRichNotifyPRAuthor(
+		[]events.CommentInfo{{Author: events.Actor{TgTag: "alice"}}},
+		events.Actor{TgTag: "bob"},
+	))
 }
 
 func TestTelegramName(t *testing.T) {
@@ -201,11 +205,13 @@ func TestRenderTelegramPRComment(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `[\#412](https://git.example/org/app/pulls/412)
-APP\-1183 \[FE\] Доработать форму
-↳ [alice](https://t.me/alice)
-↳ [carol](https://t.me/carol)
-`, body)
+	require.Equal(t, `<p><a href="https://git.example/org/app/pulls/412">#412</a></p>
+<p>APP-1183 [FE] Доработать форму</p>
+<details>
+<summary>Комментарии · 2</summary>
+<p>↳ <a href="https://t.me/alice">alice</a></p>
+<p>↳ <a href="https://t.me/carol">carol</a></p>
+</details>`, body)
 
 	reply, err := engine.Render("telegram/pr_comment", Data{
 		ThreadReply: true,
@@ -219,8 +225,11 @@ APP\-1183 \[FE\] Доработать форму
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `↳ [alice](https://t.me/alice)
-@bob`, reply)
+	require.Equal(t, `<details>
+<summary>Комментарии · 1</summary>
+<p>↳ <a href="https://t.me/alice">alice</a></p>
+</details>
+<p>@bob</p>`, reply)
 }
 
 func TestRenderTelegramPROpened(t *testing.T) {

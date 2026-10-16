@@ -1,10 +1,15 @@
 {{- if not .ThreadReply -}}
-{{tgPR .PullRequest}}
-{{tgPlain .PullRequest.Title}}
+<p>{{tgRichPR .PullRequest}}</p>
+{{- with tgRichPlain .PullRequest.Title}}
+<p>{{.}}</p>
+{{- end}}
 {{end -}}
-{{- range .Comments -}}
-↳ {{tgName .Author}}
-{{end -}}
-{{- with tgNotifyPRAuthor .Comments .PullRequest.Author -}}
-{{.}}
+<details>
+<summary>Комментарии · {{len .Comments}}</summary>
+{{- range .Comments}}
+<p>↳ {{tgRichName .Author}}</p>
+{{- end}}
+</details>
+{{- with tgRichNotifyPRAuthor .Comments .PullRequest.Author}}
+<p>{{.}}</p>
 {{- end -}}

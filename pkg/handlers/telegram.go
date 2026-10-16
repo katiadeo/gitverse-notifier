@@ -17,6 +17,7 @@ import (
 const (
 	defaultTelegramTemplate = "telegram/default"
 	telegramMaxRunes        = 4096
+	telegramRichMaxRunes    = 32000
 )
 
 type TelegramNotify struct {
@@ -143,13 +144,14 @@ func (a *TelegramNotify) notifyPRComment(ctx context.Context, event *events.Even
 	event.Comments = actorsToComments(card.Authors)
 
 	asReply := card.RootID > 0 && card.RootID != card.CommentID
-	body, err := a.render(ctx, name, event, asReply)
+	body, err := a.renderRich(ctx, name, event, asReply)
 	if err != nil {
 		return err
 	}
 
 	if card.CommentID > 0 {
-		if err := a.client.EditMessage(ctx, card.CommentID, body); err == nil || telegram.IsNotModified(err) {
+		editErr := a.editCommentCard(ctx, card, body, event, asReply)
+		if editErr == nil || telegram.IsNotModified(editErr) {
 			a.threads.Put(card)
 			logger.Info(ctx, "updated telegram comment card",
 				"action", a.Name(),
@@ -159,19 +161,20 @@ func (a *TelegramNotify) notifyPRComment(ctx context.Context, event *events.Even
 				"authors", len(card.Authors),
 			)
 			return nil
-		} else if !telegram.IsMessageGone(err) {
+		} else if !telegram.IsMessageGone(editErr) {
 			logger.Warn(ctx, "failed to edit telegram comment card, sending a new message",
-				"action", a.Name(), "err", err, "message-id", card.CommentID)
+				"action", a.Name(), "err", editErr, "message-id", card.CommentID)
 		}
 		card.CommentID = 0
 	}
 
 	replyTo := card.RootID
-	id, err := a.client.SendMessage(ctx, body, replyTo)
+	id, rich, err := a.sendCommentCard(ctx, body, replyTo, event, asReply)
 	if err != nil {
 		return err
 	}
 	card.CommentID = id
+	card.Rich = rich
 	if card.RootID == 0 {
 		card.RootID = id
 	}
@@ -238,13 +241,21 @@ func (a *TelegramNotify) prCard(event *events.Event) *cache.TelegramPRCard {
 }
 
 func (a *TelegramNotify) render(ctx context.Context, name string, event *events.Event, threadReply bool) (string, error) {
+	return a.renderClipped(ctx, name, event, threadReply, telegramMaxRunes)
+}
+
+func (a *TelegramNotify) renderRich(ctx context.Context, name string, event *events.Event, threadReply bool) (string, error) {
+	return a.renderClipped(ctx, name, event, threadReply, telegramRichMaxRunes)
+}
+
+func (a *TelegramNotify) renderClipped(ctx context.Context, name string, event *events.Event, threadReply bool, limit int) (string, error) {
 	data := templates.DataFromEvent(event)
 	data.ThreadReply = threadReply
 	body, err := a.templates.Render(name, data)
 	if err != nil {
 		return "", fmt.Errorf("failed to redener template %s: %w", name, err)
 	}
-	body = clipTelegramText(body)
+	body = clipTelegramText(body, limit)
 	logger.Debug(ctx, "rendered telegram message body",
 		"action", a.Name(),
 		"body", body,
@@ -253,6 +264,33 @@ func (a *TelegramNotify) render(ctx context.Context, name string, event *events.
 		"thread-reply", threadReply,
 	)
 	return body, nil
+}
+
+func (a *TelegramNotify) editCommentCard(ctx context.Context, card *cache.TelegramPRCard, html string, event *events.Event, asReply bool) error {
+	if card.Rich {
+		return a.client.EditRichHTML(ctx, card.CommentID, html)
+	}
+	return a.client.EditMessage(ctx, card.CommentID, a.commentFallback(event, asReply))
+}
+
+func (a *TelegramNotify) sendCommentCard(ctx context.Context, html string, replyTo int, event *events.Event, asReply bool) (int, bool, error) {
+	id, err := a.client.SendRichHTML(ctx, html, replyTo)
+	if err == nil {
+		return id, true, nil
+	}
+	logger.Warn(ctx, "telegram rich comment card failed, falling back to markdown",
+		"action", a.Name(),
+		"err", err,
+		"repository", event.Repository,
+	)
+	id, err = a.client.SendMessage(ctx, a.commentFallback(event, asReply), replyTo)
+	return id, false, err
+}
+
+func (a *TelegramNotify) commentFallback(event *events.Event, asReply bool) string {
+	data := templates.DataFromEvent(event)
+	data.ThreadReply = asReply
+	return clipTelegramText(templates.CommentCardMarkdown(data), telegramMaxRunes)
 }
 
 func telegramThreadPlan(eventType events.EventType, rootID int) (replyTo int, bindRoot bool) {
@@ -333,9 +371,12 @@ func shouldNotifyPRComment(action string) bool {
 	}
 }
 
-func clipTelegramText(s string) string {
-	if utf8.RuneCountInString(s) <= telegramMaxRunes {
+func clipTelegramText(s string, limit int) string {
+	if limit <= 1 {
+		limit = telegramMaxRunes
+	}
+	if utf8.RuneCountInString(s) <= limit {
 		return s
 	}
-	return string([]rune(s)[:telegramMaxRunes-1]) + "…"
+	return string([]rune(s)[:limit-1]) + "…"
 }

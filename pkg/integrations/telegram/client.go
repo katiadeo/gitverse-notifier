@@ -50,9 +50,10 @@ func NewTelegramClient() (*Client, error) {
 }
 
 func botOptions(proxyURL string) ([]bot.Option, error) {
+	httpClient := &http.Client{Timeout: 30 * time.Second}
 	proxyURL = strings.TrimSpace(proxyURL)
 	if proxyURL == "" {
-		return nil, nil
+		return []bot.Option{bot.WithHTTPClient(10*time.Second, httpClient)}, nil
 	}
 
 	parsed, err := url.Parse(proxyURL)
@@ -60,11 +61,8 @@ func botOptions(proxyURL string) ([]bot.Option, error) {
 		return nil, fmt.Errorf("invalid TELEGRAM_PROXY_URL %s: %w", proxyURL, err)
 	}
 
-	httpClient := &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			Proxy: http.ProxyURL(parsed),
-		},
+	httpClient.Transport = &http.Transport{
+		Proxy: http.ProxyURL(parsed),
 	}
 
 	return []bot.Option{

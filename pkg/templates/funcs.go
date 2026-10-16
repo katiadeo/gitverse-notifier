@@ -234,6 +234,89 @@ func TelegramPR(pr events.PullRequestInfo) string {
 	return TelegramEscape("PR")
 }
 
+func TelegramRichLink(text, link string) string {
+	text = html.EscapeString(text)
+	if link == "" {
+		return text
+	}
+	return fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(link), text)
+}
+
+func TelegramRichPlain(s string) string {
+	s = StripHTML(s)
+	if strings.TrimSpace(s) == "" {
+		return ""
+	}
+	return html.EscapeString(s)
+}
+
+func TelegramRichName(actor events.Actor) string {
+	if tag := strings.TrimPrefix(actor.TgTag, "@"); tag != "" {
+		return TelegramRichLink(tag, "https://t.me/"+tag)
+	}
+	text := strings.TrimSpace(actor.Name)
+	if text == "" {
+		text = strings.TrimSpace(actor.Login)
+	}
+	return TelegramRichLink(text, actor.URL)
+}
+
+func TelegramRichPR(pr events.PullRequestInfo) string {
+	number := pr.Number
+	if number <= 0 {
+		if match := telegramPRNumberRe.FindStringSubmatch(pr.URL); len(match) == 2 {
+			_, _ = fmt.Sscanf(match[1], "%d", &number)
+		}
+	}
+	if number > 0 {
+		return TelegramRichLink(fmt.Sprintf("#%d", number), pr.URL)
+	}
+	if pr.URL != "" {
+		return TelegramRichLink("PR", pr.URL)
+	}
+	return html.EscapeString("PR")
+}
+
+func TelegramRichMention(actor events.Actor) string {
+	if tag := strings.TrimPrefix(actor.TgTag, "@"); tag != "" {
+		return "@" + html.EscapeString(tag)
+	}
+	return TelegramRichName(actor)
+}
+
+func TelegramRichNotifyPRAuthor(comments []events.CommentInfo, author events.Actor) string {
+	if strings.TrimPrefix(author.TgTag, "@") == "" {
+		return ""
+	}
+	for _, comment := range comments {
+		if !sameTelegramActor(comment.Author, author) {
+			return TelegramRichMention(author)
+		}
+	}
+	return ""
+}
+
+func CommentCardMarkdown(data Data) string {
+	var b strings.Builder
+	if !data.ThreadReply {
+		b.WriteString(TelegramPR(data.PullRequest))
+		b.WriteByte('\n')
+		if title := TelegramPlain(data.PullRequest.Title); title != "" {
+			b.WriteString(title)
+			b.WriteByte('\n')
+		}
+	}
+	for _, comment := range data.Comments {
+		b.WriteString("↳ ")
+		b.WriteString(TelegramName(comment.Author))
+		b.WriteByte('\n')
+	}
+	if ping := TelegramNotifyPRAuthor(data.Comments, data.PullRequest.Author); ping != "" {
+		b.WriteString(ping)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
 func TelegramPRBranches(pr events.PullRequestInfo) string {
 	if strings.TrimSpace(pr.HeadRef) == "" || strings.TrimSpace(pr.BaseRef) == "" {
 		return ""
