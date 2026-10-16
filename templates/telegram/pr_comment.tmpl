@@ -2,6 +2,6 @@
 {{tgPlain .PullRequest.Title}}
 
 PR author: {{tgMention .PullRequest.Author}}
-Comment: {{tgMention .Comment.Author}}
+Comment: {{tgEscape .Comment.Author.Name}}
 
 {{tgMD .Comment.Body}}

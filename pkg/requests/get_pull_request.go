@@ -47,9 +47,22 @@ func (d *RequestsDispatcher) fetchAndCache(ctx context.Context, request GetPullR
 		pr, err = d.client.FindPullRequestByTitle(ctx, request.Repo, request.Title)
 	}
 	if err != nil {
+		if number > 0 {
+			logger.Warn(ctx, "gitverse api unavailable, using webhook PR number",
+				"action", "request.get-pull-request-info",
+				"err", err, "repository", request.Repo, "pr-number", number)
+			stub := gitverse.NewStubPullRequest(request.Repo, request.Title, number)
+			d.prs.Set(request.Repo, request.Title, number, stub)
+			return stub, nil
+		}
 		return nil, err
 	}
 	if pr == nil {
+		if number > 0 {
+			stub := gitverse.NewStubPullRequest(request.Repo, request.Title, number)
+			d.prs.Set(request.Repo, request.Title, number, stub)
+			return stub, nil
+		}
 		return nil, nil
 	}
 

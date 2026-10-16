@@ -1,9 +1,8 @@
 repository: any
 
-# Разрешённые коды проектов Jira (префикс ключа, например STKPVT).
+# Разрешённые коды проектов Jira (префикс ключа, например APP).
 # Пустой список — без ограничений.
-allowed_jira_projects:
-  - STKPVT
+allowed_jira_projects: []
 
 # Маппинг логинов GitVerse → username в Telegram (без @).
 # gitverse_login: telegram_username

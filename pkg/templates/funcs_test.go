@@ -58,15 +58,15 @@ func TestTelegramMentions(t *testing.T) {
 }
 
 func TestStripHTML(t *testing.T) {
-	raw := "<p>Запрос на слияние из STKPVT-986 в develop</p><p>уточняет Артем<br/>вторая строка</p>"
-	require.Equal(t, "Запрос на слияние из STKPVT-986 в develop\nуточняет Артем\nвторая строка", StripHTML(raw))
+	raw := "<p>Запрос на слияние из APP-986 в develop</p><p>уточняет bob<br/>вторая строка</p>"
+	require.Equal(t, "Запрос на слияние из APP-986 в develop\nуточняет bob\nвторая строка", StripHTML(raw))
 	require.Equal(t, `He said "ok"`, StripHTML("<p>He said &quot;ok&quot;</p>"))
 	require.Equal(t, "", StripHTML("<p></p>"))
 }
 
 func TestTelegramPlain(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
-	require.Equal(t, "STKPVT\\-986 \\[FE\\]", TelegramPlain("<p>STKPVT-986 [FE]</p>"))
+	require.Equal(t, "APP\\-986 \\[FE\\]", TelegramPlain("<p>APP-986 [FE]</p>"))
 }
 
 func TestTelegramPR(t *testing.T) {
@@ -86,10 +86,10 @@ func TestTelegramPRBranches(t *testing.T) {
 	require.Equal(t, "", TelegramPRBranches(events.PullRequestInfo{HeadRef: "feature"}))
 	require.Equal(
 		t,
-		"[STKPVT\\-1237](https://git.example/src/branch/STKPVT-1237) → [develop](https://git.example/src/branch/develop)",
+		"[APP\\-1237](https://git.example/src/branch/APP-1237) → [develop](https://git.example/src/branch/develop)",
 		TelegramPRBranches(events.PullRequestInfo{
-			HeadRef: "STKPVT-1237",
-			HeadURL: "https://git.example/src/branch/STKPVT-1237",
+			HeadRef: "APP-1237",
+			HeadURL: "https://git.example/src/branch/APP-1237",
 			BaseRef: "develop",
 			BaseURL: "https://git.example/src/branch/develop",
 		}),
@@ -109,16 +109,16 @@ func TestRenderTelegramReviewRequested(t *testing.T) {
 	body, err := engine.Render("telegram/review_requested", Data{
 		PullRequest: events.PullRequestInfo{
 			Number: 281,
-			Title:  "STKPVT-281: Гайд по деплою",
-			URL:    "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281",
+			Title:  "APP-281: deploy guide",
+			URL:    "https://git.example/org/app/pulls/281",
 			Reviewers: []events.Actor{
 				{Name: "alice", TgTag: "alice"},
 			},
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `[\#281](https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281) · review requested
-STKPVT\-281: Гайд по деплою
+	require.Equal(t, `[\#281](https://git.example/org/app/pulls/281) · review requested
+APP\-281: deploy guide
 @alice
 `, body)
 }
@@ -133,8 +133,8 @@ func TestTelegramMD(t *testing.T) {
 	require.Equal(t, "Смотри `foo.bar()` и [ссылка](https://example.com)", got)
 
 	config.GlobalConfig.JiraURL = "https://jira.example.com"
-	got = TelegramMD("#### **STKPVT-1184**")
-	require.Equal(t, "*[STKPVT\\-1184](https://jira.example.com/browse/STKPVT-1184)*", got)
+	got = TelegramMD("#### **APP-1184**")
+	require.Equal(t, "*[APP\\-1184](https://jira.example.com/browse/APP-1184)*", got)
 
 	got = TelegramMD("hello **bold**")
 	require.Equal(t, "hello *bold*", got)
@@ -190,8 +190,8 @@ func TestRenderTelegramPRComment(t *testing.T) {
 	body, err := engine.Render("telegram/pr_comment", Data{
 		PullRequest: events.PullRequestInfo{
 			Number: 412,
-			Title:  "STKPVT-1183 [FE] Доработать форму",
-			URL:    "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412",
+			Title:  "APP-1183 [FE] Доработать форму",
+			URL:    "https://git.example/org/app/pulls/412",
 			Author: events.Actor{Name: "bob", Login: "bob", URL: "https://git.example/bob"},
 		},
 		Comment: events.CommentInfo{
@@ -200,11 +200,11 @@ func TestRenderTelegramPRComment(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `[\#412](https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412)
-STKPVT\-1183 \[FE\] Доработать форму
+	require.Equal(t, `[\#412](https://git.example/org/app/pulls/412)
+APP\-1183 \[FE\] Доработать форму
 
 PR author: [bob](https://git.example/bob)
-Comment: @alice
+Comment: alice
 
 Тогда `+"`z.array(z.string()).min(1, 'Обязательное поле')`"+`
 `, body)
@@ -223,18 +223,18 @@ func TestRenderTelegramPROpened(t *testing.T) {
 	body, err := engine.Render("telegram/pr_opened", Data{
 		PullRequest: events.PullRequestInfo{
 			Number:  218,
-			Title:   `<p>STKPVT-1237 [FE] Доработка</p>`,
-			URL:     "https://gitverse.ru/bks-frontend/fcs-frontend/pulls/218",
-			HeadRef: "STKPVT-1237",
-			HeadURL: "https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/STKPVT-1237",
+			Title:   `<p>APP-1237 [FE] Доработка</p>`,
+			URL:     "https://git.example/org/app/pulls/218",
+			HeadRef: "APP-1237",
+			HeadURL: "https://git.example/org/app/src/branch/APP-1237",
 			BaseRef: "develop",
-			BaseURL: "https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/develop",
-			Author:  events.Actor{Name: "alice", URL: "https://gitverse.ru/alice"},
+			BaseURL: "https://git.example/org/app/src/branch/develop",
+			Author:  events.Actor{Name: "alice", URL: "https://git.example/alice"},
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `[\#218](https://gitverse.ru/bks-frontend/fcs-frontend/pulls/218) · opened
-STKPVT\-1237 \[FE\] Доработка
-[alice](https://gitverse.ru/alice) · [STKPVT\-1237](https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/STKPVT-1237) → [develop](https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/develop)
+	require.Equal(t, `[\#218](https://git.example/org/app/pulls/218) · opened
+APP\-1237 \[FE\] Доработка
+[alice](https://git.example/alice) · [APP\-1237](https://git.example/org/app/src/branch/APP-1237) → [develop](https://git.example/org/app/src/branch/develop)
 `, body)
 }

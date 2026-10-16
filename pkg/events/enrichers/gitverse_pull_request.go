@@ -34,6 +34,10 @@ func (e *GitversePullRequest) Skip(event *events.Event) bool {
 }
 
 func (e *GitversePullRequest) Enrich(ctx context.Context, event *events.Event) error {
+	if event.PullRequest.Number > 0 {
+		e.dispatcher.Remember(event.Repository, event.PullRequest.Title, event.PullRequest.Number)
+	}
+
 	if event.Repository == "" || event.PullRequest.Title == "" {
 		logger.Info(ctx, "skip gitverse PR lookup: missing repository or title",
 			"action", e.Name(), "repository", event.Repository, "title", event.PullRequest.Title,

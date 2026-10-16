@@ -11,16 +11,16 @@ import (
 )
 
 func TestGitverseLinks_RewritesAPIHostToUIPullURL(t *testing.T) {
-	config.GlobalConfig = &config.Config{GitverseBaseURL: "https://git.eaisto.at-consulting.ru"}
+	config.GlobalConfig = &config.Config{GitverseBaseURL: "https://git.example"}
 	event := &events.Event{
-		Repository: "bks-frontend/fcs-frontend",
+		Repository: "org/app",
 		PullRequest: events.PullRequestInfo{
-			URL: "https://git-api.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/390",
+			URL: "https://git-api.example/org/app/pulls/390",
 		},
 	}
 
 	err := NewGitverseLinks(nil).Enrich(context.Background(), event)
 	require.NoError(t, err)
 	require.Equal(t, 390, event.PullRequest.Number)
-	require.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/390", event.PullRequest.URL)
+	require.Equal(t, "https://git.example/org/app/pulls/390", event.PullRequest.URL)
 }

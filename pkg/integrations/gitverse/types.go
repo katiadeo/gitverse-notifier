@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"gitverse-notifier/pkg/config"
 )
 
 var pullNumberRe = regexp.MustCompile(`/(?:pulls?|issues)/(\d+)`)
@@ -143,6 +145,19 @@ type CommitInfo struct {
 	Parents   []CommitParent `json:"parents"`
 	Stats     CommitStats    `json:"stats"`
 	Files     []CommitFile   `json:"files"`
+}
+
+func NewStubPullRequest(repository, title string, number int) *PullRequest {
+	pr := &PullRequest{Number: number, Title: title}
+	base := ""
+	if config.GlobalConfig != nil {
+		base = strings.TrimRight(config.GlobalConfig.GitverseBaseURL, "/")
+	}
+	if base != "" && repository != "" && number > 0 {
+		pr.HTMLURL = fmt.Sprintf("%s/%s/pulls/%d", base, strings.Trim(repository, "/"), number)
+		pr.URL = pr.HTMLURL
+	}
+	return pr
 }
 
 func (p *PullRequest) Normalize() {
