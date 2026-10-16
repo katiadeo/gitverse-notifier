@@ -3,8 +3,16 @@ package parsers
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"gitverse-notifier/pkg/events"
+)
+
+var (
+	pullsURLRe    = regexp.MustCompile(`https?://[^\s"'<>]+/pulls/\d+`)
+	pullsNumberRe = regexp.MustCompile(`/pulls/(\d+)`)
+	mentionRe     = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_-]+)`)
 )
 
 type issueCommentPayload struct {
@@ -53,23 +61,33 @@ func fillIssueComment(event *events.Event, body []byte) error {
 	if event.Comment.Author == (events.Actor{}) {
 		event.Comment.Author = payload.Sender.toActor()
 	}
+	event.Comment.Mentions = mentionsFrom(payload.Comment.Body, event.Comment.Author)
 
 	pr := payload.pr()
-	isPR := payload.IsPull || payload.IsPullSnake || payload.Issue.Title != "" || payload.Issue.Number > 0 || pr.Number > 0
+	isPR := payload.IsPull || payload.IsPullSnake || payload.Issue.Title != "" || payload.Issue.Number > 0 || pr.Number > 0 || pullsURLRe.Match(body)
 	if isPR {
+		url := firstNonEmpty(
+			pr.url(),
+			payload.Issue.HTMLURL,
+			payload.Issue.HTMLUrl,
+			payload.Issue.PullRequest.url(),
+			payload.Comment.PullRequestURL,
+			pullURLFrom(payload.Comment.HTMLURL),
+			prURLFromRaw(body),
+		)
 		event.PullRequest = events.PullRequestInfo{
-			Number: firstPositive(pr.Number, payload.Issue.Number, payload.Issue.Index, payload.Number, prNumberFromRaw(body)),
-			Title:  firstNonEmpty(pr.Title, payload.Issue.Title),
-			Body:   firstNonEmpty(pr.Body, payload.Issue.Body),
-			State:  firstNonEmpty(pr.State, payload.Issue.State),
-			URL: firstNonEmpty(
-				pr.url(),
-				payload.Issue.HTMLURL,
-				payload.Issue.HTMLUrl,
-				payload.Issue.PullRequest.url(),
-				payload.Comment.PullRequestURL,
-				payload.Comment.HTMLURL,
+			Number: firstPositive(
+				pr.Number,
+				payload.Issue.Number,
+				payload.Issue.Index,
+				payload.Number,
+				prNumberFromRaw(body),
+				prNumberFromURL(url, payload.Comment.HTMLURL),
 			),
+			Title:   firstNonEmpty(pr.Title, payload.Issue.Title),
+			Body:    firstNonEmpty(pr.Body, payload.Issue.Body),
+			State:   firstNonEmpty(pr.State, payload.Issue.State),
+			URL:     url,
 			Author:  firstActor(payload.Issue.User, pr.User),
 			HeadRef: firstNonEmpty(pr.Head.Ref, pr.Head.Label),
 			BaseRef: firstNonEmpty(pr.Base.Ref, pr.Base.Label),
@@ -93,7 +111,62 @@ func prNumberFromRaw(body []byte) int {
 		jsonPathInt(raw, "pull_request", "number"),
 		jsonPathInt(raw, "issue", "pullRequest", "number"),
 		jsonPathInt(raw, "issue", "pull_request", "number"),
+		prNumberFromURL(string(body)),
 	)
+}
+
+func prURLFromRaw(body []byte) string {
+	return pullURLFrom(string(body))
+}
+
+func pullURLFrom(values ...string) string {
+	for _, value := range values {
+		if match := pullsURLRe.FindString(value); match != "" {
+			return match
+		}
+	}
+	return ""
+}
+
+func prNumberFromURL(values ...string) int {
+	for _, value := range values {
+		if match := pullsNumberRe.FindStringSubmatch(value); len(match) == 2 {
+			var n int
+			if _, err := fmt.Sscanf(match[1], "%d", &n); err == nil && n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+func mentionsFrom(body string, author events.Actor) []events.Actor {
+	matches := mentionRe.FindAllStringSubmatch(body, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	out := make([]events.Actor, 0, len(matches))
+	seen := map[string]struct{}{}
+	for _, match := range matches {
+		login := match[1]
+		key := strings.ToLower(login)
+		if key == "" {
+			continue
+		}
+		if author.Login != "" && strings.EqualFold(author.Login, login) {
+			continue
+		}
+		if author.Name != "" && strings.EqualFold(author.Name, login) {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, events.Actor{Name: login, Login: login})
+	}
+	return out
 }
 
 func jsonPathInt(cur any, path ...string) int {

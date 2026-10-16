@@ -11,6 +11,10 @@ allowed_jira_projects:
 telegram_tags:
   tmukhortova: katiadeo
   aviktorov: viktorov616
+  avikharev: Groad9
+  kvolkov: screwpassenger
+  avalrenov: innokentykedrov
+  nsmirnova: Zig_Zaggggg
 
 # Доступные события - ТОЛЬКО ДЛЯ СПРАВКИ
 available_events:

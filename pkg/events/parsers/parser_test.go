@@ -53,12 +53,12 @@ func TestParseEvent_PullRequestOpened(t *testing.T) {
 	assert.Equal(t, events.PullRequestOpened, event.Type)
 	assert.Equal(t, "opened", event.Action)
 	assert.Equal(t, "org/app", event.Repository)
-	assert.Equal(t, events.Actor{ID: 7, Name: "alice", Email: "alice@example.com"}, event.Sender)
+	assert.Equal(t, events.Actor{ID: 7, Name: "alice", Login: "alice", Email: "alice@example.com"}, event.Sender)
 	assert.Equal(t, 42, event.PullRequest.Number)
 	assert.Equal(t, "Add feature", event.PullRequest.Title)
 	assert.Equal(t, "Implements APP-1", event.PullRequest.Body)
 	assert.Equal(t, "open", event.PullRequest.State)
-	assert.Equal(t, events.Actor{ID: 8, Name: "bob"}, event.PullRequest.Author)
+	assert.Equal(t, events.Actor{ID: 8, Name: "bob", Login: "bob"}, event.PullRequest.Author)
 	assert.Equal(t, "STKPVT-1", event.PullRequest.HeadRef)
 	assert.Equal(t, "develop", event.PullRequest.BaseRef)
 	assert.Empty(t, event.Comment.Body)
@@ -211,6 +211,32 @@ func TestParseEvent_PullRequestOpened_GitverseSnakeCase(t *testing.T) {
 	assert.Equal(t, "tmukhortova", event.Sender.Name)
 	assert.Equal(t, "https://git.eaisto.at-consulting.ru/tmukhortova", event.Sender.URL)
 	assert.Equal(t, "STKPVT-738-nx-generator", event.PullRequest.HeadRef)
+}
+
+func TestParseEvent_IssueComment_NumberFromCommentHTMLURL(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "created",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "bks-frontend/fcs-frontend"},
+		"sender":     map[string]any{"login": "tmukhortova"},
+		"issue": map[string]any{
+			"title": "STKPVT-1183 [FE] Доработать форму",
+			"user":  map[string]any{"login": "avikharev", "html_url": "https://git.eaisto.at-consulting.ru/avikharev"},
+		},
+		"comment": map[string]any{
+			"body":     "Тогда `z.array(z.string())` @avikharev",
+			"html_url": "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412#issuecomment-1",
+			"user":     map[string]any{"login": "tmukhortova"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 412, event.PullRequest.Number)
+	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412", event.PullRequest.URL)
+	assert.Equal(t, "avikharev", event.PullRequest.Author.Login)
+	require.Len(t, event.Comment.Mentions, 1)
+	assert.Equal(t, "avikharev", event.Comment.Mentions[0].Login)
 }
 
 func TestParseEvent_IssueComment_NumberFromPullRequestObject(t *testing.T) {

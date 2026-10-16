@@ -1,4 +1,10 @@
-{{tgPR .PullRequest}} · comment{{with tgMentionOther .PullRequest.Author .Comment.Author}} · {{.}}{{end}}
+{{tgPR .PullRequest}}
 {{tgPlain .PullRequest.Title}}
 
-{{tgName .Comment.Author}}: {{tgPlain .Comment.Body}}
+PR author: {{tgMention .PullRequest.Author}}
+Comment: {{tgMention .Comment.Author}}
+{{- with tgCommentRecipients .PullRequest .Comment}}
+To: {{.}}
+{{- end}}
+
+{{tgMD .Comment.Body}}

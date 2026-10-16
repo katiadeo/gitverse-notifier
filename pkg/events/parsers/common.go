@@ -9,22 +9,22 @@ import (
 )
 
 type actorPayload struct {
-	ID      int64  `json:"id"`
-	Name    string `json:"name"`
-	Login   string `json:"login"`
-	Email   string `json:"email"`
-	HTMLURL string `json:"html_url"`
-	URL     string `json:"url"`
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Login    string `json:"login"`
+	FullName string `json:"full_name"`
+	Email    string `json:"email"`
+	HTMLURL  string `json:"html_url"`
+	URL      string `json:"url"`
 }
 
 func (a actorPayload) toActor() events.Actor {
-	name := strings.TrimSpace(a.Name)
-	if name == "" {
-		name = strings.TrimSpace(a.Login)
-	}
+	login := firstNonEmpty(a.Login, a.Name)
+	name := firstNonEmpty(a.FullName, a.Name, a.Login)
 	return events.Actor{
 		ID:    a.ID,
 		Name:  name,
+		Login: login,
 		Email: a.Email,
 		URL:   firstNonEmpty(a.HTMLURL, a.URL),
 	}

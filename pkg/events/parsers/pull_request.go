@@ -57,13 +57,14 @@ func fillPullRequest(event *events.Event, body []byte) error {
 	}
 
 	pr := payload.pr()
+	url := firstNonEmpty(pr.url(), prURLFromRaw(body))
 	event.PullRequest = events.PullRequestInfo{
-		Number:    firstPositive(pr.Number, payload.Number),
+		Number:    firstPositive(pr.Number, payload.Number, prNumberFromRaw(body), prNumberFromURL(url)),
 		Title:     pr.Title,
 		Body:      pr.Body,
 		State:     pr.State,
 		Merged:    pr.Merged,
-		URL:       pr.url(),
+		URL:       url,
 		Author:    pr.User.toActor(),
 		HeadRef:   firstNonEmpty(pr.Head.Ref, pr.Head.Label),
 		BaseRef:   firstNonEmpty(pr.Base.Ref, pr.Base.Label),

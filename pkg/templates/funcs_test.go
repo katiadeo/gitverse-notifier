@@ -123,6 +123,29 @@ STKPVT\-281: Гайд по деплою
 `, body)
 }
 
+func TestTelegramMD(t *testing.T) {
+	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
+
+	got := TelegramMD("Тогда `z.array(z.string()).min(1, 'Обязательное поле')`\nИ еще в `controlDirections`")
+	require.Equal(t, "Тогда `z.array(z.string()).min(1, 'Обязательное поле')`\nИ еще в `controlDirections`", got)
+
+	got = TelegramMD(`<p>Смотри <code>foo.bar()</code> и <a href="https://example.com">ссылка</a></p>`)
+	require.Equal(t, "Смотри `foo.bar()` и [ссылка](https://example.com)", got)
+}
+
+func TestTelegramCommentRecipients(t *testing.T) {
+	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
+
+	got := TelegramCommentRecipients(
+		events.PullRequestInfo{Author: events.Actor{Login: "avikharev", Name: "avikharev", URL: "https://git.example/avikharev"}},
+		events.CommentInfo{
+			Author:   events.Actor{Login: "tmukhortova", TgTag: "katiadeo"},
+			Mentions: []events.Actor{{Login: "avikharev", Name: "avikharev", URL: "https://git.example/avikharev"}},
+		},
+	)
+	require.Equal(t, "[avikharev](https://git.example/avikharev)", got)
+}
+
 func TestRenderTelegramPRComment(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 
@@ -135,21 +158,25 @@ func TestRenderTelegramPRComment(t *testing.T) {
 	engine := &Engine{engine: tmpl}
 	body, err := engine.Render("telegram/pr_comment", Data{
 		PullRequest: events.PullRequestInfo{
-			Number: 237,
-			Title:  "STKPVT-738 Доработан nx генератор и его описание в гайде",
-			URL:    "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/237",
-			Author: events.Actor{Name: "tmukhortova", TgTag: "katiadeo"},
+			Number: 412,
+			Title:  "STKPVT-1183 [FE] Доработать форму",
+			URL:    "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412",
+			Author: events.Actor{Name: "avikharev", Login: "avikharev", URL: "https://git.eaisto.at-consulting.ru/avikharev"},
 		},
 		Comment: events.CommentInfo{
-			Body:   "super final check",
-			Author: events.Actor{Name: "tmukhortova", TgTag: "katiadeo"},
+			Body:   "Тогда `z.array(z.string()).min(1, 'Обязательное поле')`",
+			Author: events.Actor{Name: "tmukhortova", Login: "tmukhortova", TgTag: "katiadeo"},
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `[\#237](https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/237) · comment
-STKPVT\-738 Доработан nx генератор и его описание в гайде
+	require.Equal(t, `[\#412](https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412)
+STKPVT\-1183 \[FE\] Доработать форму
 
-[katiadeo](https://t.me/katiadeo): super final check
+PR author: [avikharev](https://git.eaisto.at-consulting.ru/avikharev)
+Comment: @katiadeo
+To: [avikharev](https://git.eaisto.at-consulting.ru/avikharev)
+
+Тогда `+"`z.array(z.string()).min(1, 'Обязательное поле')`"+`
 `, body)
 }
 

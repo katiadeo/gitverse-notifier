@@ -30,6 +30,7 @@ const (
 type Actor struct {
 	ID    int64
 	Name  string
+	Login string
 	Email string
 	URL   string
 	TgTag string
@@ -51,8 +52,9 @@ type PullRequestInfo struct {
 }
 
 type CommentInfo struct {
-	Body   string
-	Author Actor
+	Body     string
+	Author   Actor
+	Mentions []Actor
 }
 
 type PushInfo struct {
