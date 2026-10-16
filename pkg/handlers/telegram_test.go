@@ -13,5 +13,6 @@ func TestShouldNotifyPRComment(t *testing.T) {
 	assert.True(t, shouldNotifyPRComment("created"))
 	assert.True(t, shouldNotifyPRComment("Created"))
 	assert.True(t, shouldNotifyPRComment("edited"))
-	assert.True(t, shouldNotifyPRComment("deleted"))
+	assert.False(t, shouldNotifyPRComment("deleted"))
+	assert.False(t, shouldNotifyPRComment("delete"))
 }
