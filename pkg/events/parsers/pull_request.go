@@ -14,16 +14,11 @@ type prBranchPayload struct {
 
 type pullRequestBodyPayload struct {
 	Number             flexInt         `json:"number"`
-	Index              flexInt         `json:"index"`
-	IID                flexInt         `json:"iid"`
 	Title              string          `json:"title"`
 	Body               string          `json:"body"`
 	State              string          `json:"state"`
 	Merged             bool            `json:"merged"`
 	HTMLURL            string          `json:"html_url"`
-	HTMLUrl            string          `json:"htmlUrl"`
-	WebURL             string          `json:"web_url"`
-	WebUrl             string          `json:"webUrl"`
 	URL                string          `json:"url"`
 	User               actorPayload    `json:"user"`
 	Head               prBranchPayload `json:"head"`
@@ -32,11 +27,11 @@ type pullRequestBodyPayload struct {
 }
 
 func (p pullRequestBodyPayload) url() string {
-	return firstNonEmpty(p.HTMLURL, p.HTMLUrl, p.WebURL, p.WebUrl, toPullHTMLURL(p.URL))
+	return firstNonEmpty(p.HTMLURL, toPullHTMLURL(p.URL))
 }
 
 func (p pullRequestBodyPayload) number() int {
-	return firstPositive(p.Number.Int(), p.Index.Int(), p.IID.Int())
+	return p.Number.Int()
 }
 
 type pullRequestPayload struct {
@@ -66,9 +61,9 @@ func fillPullRequest(event *events.Event, body []byte) error {
 	}
 
 	pr := payload.pr()
-	url := firstNonEmpty(pr.url(), prURLFromRaw(body))
+	url := pr.url()
 	event.PullRequest = events.PullRequestInfo{
-		Number:    firstPositive(pr.number(), payload.Number.Int(), prNumberFromRaw(body), prNumberFromURL(url)),
+		Number:    firstPositive(pr.number(), payload.Number.Int(), prNumberFromURL(url)),
 		Title:     pr.Title,
 		Body:      pr.Body,
 		State:     pr.State,
@@ -92,6 +87,5 @@ func fillPullRequest(event *events.Event, body []byte) error {
 		}
 	}
 
-	applyScannedPR(event, body)
 	return nil
 }

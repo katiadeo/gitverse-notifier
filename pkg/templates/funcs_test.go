@@ -36,15 +36,6 @@ func TestTelegramName(t *testing.T) {
 	require.Equal(t, "alice", TelegramName(events.Actor{Name: "alice"}))
 }
 
-func TestTelegramMentionOther(t *testing.T) {
-	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
-
-	author := events.Actor{ID: 1, Name: "alice", TgTag: "alice"}
-	require.Equal(t, "@alice", TelegramMentionOther(author, events.Actor{Name: "bob"}))
-	require.Equal(t, "", TelegramMentionOther(author, events.Actor{ID: 1, Name: "alice"}))
-	require.Equal(t, "", TelegramMentionOther(author, events.Actor{Name: "Alice"}))
-}
-
 func TestTelegramMentions(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 
@@ -162,19 +153,6 @@ func TestTelegramMD(t *testing.T) {
 
 	got = TelegramMD("leave foo_bar alone")
 	require.Equal(t, "leave foo\\_bar alone", got)
-}
-
-func TestTelegramCommentRecipients(t *testing.T) {
-	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
-
-	got := TelegramCommentRecipients(
-		events.PullRequestInfo{Author: events.Actor{Login: "bob", Name: "bob", URL: "https://git.example/bob"}},
-		events.CommentInfo{
-			Author:   events.Actor{Login: "alice", TgTag: "alice"},
-			Mentions: []events.Actor{{Login: "bob", Name: "bob", URL: "https://git.example/bob"}},
-		},
-	)
-	require.Equal(t, "[bob](https://git.example/bob)", got)
 }
 
 func TestRenderTelegramPRComment(t *testing.T) {

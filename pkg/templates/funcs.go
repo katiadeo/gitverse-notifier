@@ -160,54 +160,6 @@ func TelegramMentions(actors []events.Actor) string {
 	return strings.Join(parts, ", ")
 }
 
-func TelegramMentionOther(actor, except events.Actor) string {
-	if sameActor(actor, except) {
-		return ""
-	}
-	return TelegramMention(actor)
-}
-
-func sameActor(a, b events.Actor) bool {
-	if a.ID != 0 && a.ID == b.ID {
-		return true
-	}
-	if a.Login != "" && strings.EqualFold(a.Login, b.Login) {
-		return true
-	}
-	if a.Name != "" && strings.EqualFold(a.Name, b.Name) {
-		return true
-	}
-	tagA := strings.TrimPrefix(strings.ToLower(a.TgTag), "@")
-	tagB := strings.TrimPrefix(strings.ToLower(b.TgTag), "@")
-	return tagA != "" && tagA == tagB
-}
-
-func TelegramCommentRecipients(pr events.PullRequestInfo, comment events.CommentInfo) string {
-	targets := make([]events.Actor, 0, 1+len(comment.Mentions))
-	if pr.Author != (events.Actor{}) {
-		targets = append(targets, pr.Author)
-	}
-	targets = append(targets, comment.Mentions...)
-
-	uniq := make([]events.Actor, 0, len(targets))
-	for _, actor := range targets {
-		if sameActor(actor, comment.Author) {
-			continue
-		}
-		duplicate := false
-		for _, existing := range uniq {
-			if sameActor(existing, actor) {
-				duplicate = true
-				break
-			}
-		}
-		if !duplicate && (actor.Name != "" || actor.Login != "" || actor.TgTag != "") {
-			uniq = append(uniq, actor)
-		}
-	}
-	return TelegramMentions(uniq)
-}
-
 func StripHTML(s string) string {
 	if s == "" {
 		return ""
