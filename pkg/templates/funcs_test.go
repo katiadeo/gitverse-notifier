@@ -28,7 +28,7 @@ func TestTelegramMention(t *testing.T) {
 func TestTelegramName(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 
-	require.Equal(t, "[alice](https://t.me/alice_tg)", TelegramName(events.Actor{
+	require.Equal(t, "[alice\\_tg](https://t.me/alice_tg)", TelegramName(events.Actor{
 		Name:  "alice",
 		URL:   "https://git.example/u/alice",
 		TgTag: "alice_tg",
@@ -117,7 +117,10 @@ APP\-281: deploy guide
 func TestTelegramMD(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 
-	got := TelegramMD("Тогда `z.array(z.string()).min(1, 'Обязательное поле')`\nИ еще в `controlDirections`")
+	got := TelegramMD("Ага, не нужен\\\nПерепутала массив")
+	require.Equal(t, "Ага, не нужен\nПерепутала массив", got)
+
+	got = TelegramMD("Тогда `z.array(z.string()).min(1, 'Обязательное поле')`\nИ еще в `controlDirections`")
 	require.Equal(t, "Тогда `z.array(z.string()).min(1, 'Обязательное поле')`\nИ еще в `controlDirections`", got)
 
 	got = TelegramMD(`<p>Смотри <code>foo.bar()</code> и <a href="https://example.com">ссылка</a></p>`)
@@ -173,7 +176,7 @@ func TestRenderTelegramPRComment(t *testing.T) {
 			Author: events.Actor{Name: "bob", Login: "bob", URL: "https://git.example/bob"},
 		},
 		Comment: events.CommentInfo{
-			Body:   "Тогда `z.array(z.string()).min(1, 'Обязательное поле')`",
+			Body:   "Доработать поле')`",
 			Author: events.Actor{Name: "alice", Login: "alice", TgTag: "alice"},
 		},
 	})
@@ -183,8 +186,6 @@ APP\-1183 \[FE\] Доработать форму
 
 PR author: [bob](https://git.example/bob)
 Comment: [alice](https://t.me/alice)
-
-Тогда `+"`z.array(z.string()).min(1, 'Обязательное поле')`"+`
 `, body)
 }
 

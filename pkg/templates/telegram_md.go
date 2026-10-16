@@ -27,6 +27,8 @@ func TelegramMD(s string) string {
 		return ""
 	}
 	s = mdHeadingRe.ReplaceAllString(htmlToMarkdownish(s), "")
+	s = strings.ReplaceAll(s, "\\\r\n", "\n")
+	s = strings.ReplaceAll(s, "\\\n", "\n")
 	return mdToTelegramV2(s)
 }
 
