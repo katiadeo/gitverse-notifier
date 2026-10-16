@@ -48,11 +48,17 @@ func (s *MemoryPullRequestCache) Set(repo, title string, number int, pr *gitvers
 		return
 	}
 	s.cache.Set(prCacheKey(repo, number), pr, gocache.DefaultExpiration)
-	s.cache.Set(prNumberCacheKey(repo, title), number, 48*time.Hour)
+	s.cache.Set(prNumberCacheKey(repo, gitverse.NormalizePRTitle(title)), number, 48*time.Hour)
+	if title != gitverse.NormalizePRTitle(title) {
+		s.cache.Set(prNumberCacheKey(repo, title), number, 48*time.Hour)
+	}
 }
 
 func (s *MemoryPullRequestCache) GetPRNumber(repo, title string) int {
-	value, ok := s.cache.Get(prNumberCacheKey(repo, title))
+	value, ok := s.cache.Get(prNumberCacheKey(repo, gitverse.NormalizePRTitle(title)))
+	if !ok {
+		value, ok = s.cache.Get(prNumberCacheKey(repo, title))
+	}
 	if !ok {
 		return 0
 	}

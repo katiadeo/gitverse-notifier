@@ -6,6 +6,7 @@ import (
 
 	"gitverse-notifier/pkg/events"
 	"gitverse-notifier/pkg/integrations/gitverse"
+	"gitverse-notifier/pkg/logger"
 	"gitverse-notifier/pkg/requests"
 )
 
@@ -34,6 +35,9 @@ func (e *GitversePullRequest) Skip(event *events.Event) bool {
 
 func (e *GitversePullRequest) Enrich(ctx context.Context, event *events.Event) error {
 	if event.Repository == "" || event.PullRequest.Title == "" {
+		logger.Info(ctx, "skip gitverse PR lookup: missing repository or title",
+			"action", e.Name(), "repository", event.Repository, "title", event.PullRequest.Title,
+			"pr-number", event.PullRequest.Number)
 		return nil
 	}
 
@@ -43,8 +47,19 @@ func (e *GitversePullRequest) Enrich(ctx context.Context, event *events.Event) e
 		Number:    event.PullRequest.Number,
 		EventType: event.Type,
 	})
-	if err != nil || pr == nil {
-		return err
+	if err != nil {
+		logger.Warn(ctx, "gitverse PR lookup failed",
+			"action", e.Name(), "err", err, "repository", event.Repository,
+			"title", event.PullRequest.Title, "pr-number", event.PullRequest.Number)
+		return nil
+	}
+	if pr == nil {
+		if event.PullRequest.Number <= 0 {
+			logger.Warn(ctx, "gitverse PR lookup found nothing",
+				"action", e.Name(), "repository", event.Repository,
+				"title", event.PullRequest.Title)
+		}
+		return nil
 	}
 
 	applyPullRequest(event, pr)

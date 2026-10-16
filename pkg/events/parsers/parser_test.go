@@ -313,6 +313,49 @@ func TestParseEvent_IssueComment_NumberFromCamelCaseHTMLUrl(t *testing.T) {
 	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/390", event.PullRequest.URL)
 }
 
+func TestParseEvent_IssueComment_NumberFromNestedIndexAndDraftTitle(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":  "edited",
+		"is_pull": true,
+		"repo": map[string]any{
+			"name":  "fcs-frontend",
+			"owner": map[string]any{"username": "bks-frontend"},
+		},
+		"issue": map[string]any{
+			"title": "Draft:  STKPVT-1197 [FE] Доработать логику",
+			"index": "241",
+			"user":  map[string]any{"login": "aalavrenov"},
+		},
+		"comment": map[string]any{
+			"body": "Testing gitverse bot",
+			"user": map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 241, event.PullRequest.Number)
+	assert.Equal(t, "bks-frontend/fcs-frontend", event.Repository)
+	assert.Equal(t, "Draft:  STKPVT-1197 [FE] Доработать логику", event.PullRequest.Title)
+}
+
+func TestParseEvent_IssueComment_NumberFromMergeRequestURL(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "created",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "bks-frontend/fcs-frontend"},
+		"issue":      map[string]any{"title": "STKPVT-1"},
+		"comment": map[string]any{
+			"body": "x",
+			"url":  "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/merge-requests/88#note-1",
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 88, event.PullRequest.Number)
+}
+
 func TestParseEvent_IssueComment_NumberFromPullRequestObject(t *testing.T) {
 	body := mustJSON(t, map[string]any{
 		"repository":  map[string]any{"fullName": "org/app"},
@@ -542,11 +585,12 @@ func TestParseEvent_Errors(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to detect event type")
 	})
 
-	t.Run("invalid pull request json after type resolve", func(t *testing.T) {
-		body := []byte(`{"action":"opened","repository":{"fullName":"org/app"},"number":"not-int"}`)
-		_, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to parse pull request json")
+	t.Run("non-numeric pull request number is ignored", func(t *testing.T) {
+		body := []byte(`{"action":"opened","repository":{"fullName":"org/app"},"number":"not-int","pullRequest":{"title":"x"}}`)
+		event, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
+		require.NoError(t, err)
+		assert.Equal(t, 0, event.PullRequest.Number)
+		assert.Equal(t, "x", event.PullRequest.Title)
 	})
 
 	t.Run("invalid issue comment json", func(t *testing.T) {

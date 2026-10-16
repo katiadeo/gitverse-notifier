@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	pullsURLRe     = regexp.MustCompile(`https?://[^\s"'<>]+/(?:pulls?|issues)/\d+`)
-	pullsNumberRe  = regexp.MustCompile(`/(?:pulls?|issues)/(\d+)`)
+	pullsURLRe     = regexp.MustCompile(`(?i)https?://[^\s"'<>]+/(?:pulls?|pull-requests?|merge[_-]?requests?|issues)/\d+`)
+	pullsNumberRe  = regexp.MustCompile(`(?i)/(?:pulls?|pull-requests?|merge[_-]?requests?|issues)/(\d+)`)
 	apiRepoURLRe   = regexp.MustCompile(`^(https?://[^/]+)(?:/api/v\d+)?/repos/([^/]+/[^/]+)/(?:issues|pulls)/(\d+)`)
 	uiRepoURLRe    = regexp.MustCompile(`^https?://[^/]+/([^/]+/[^/]+)/(?:pulls?|issues)/\d+`)
 	issuePathNumRe = regexp.MustCompile(`/issues/(\d+)$`)
@@ -21,11 +21,11 @@ var (
 type issueCommentPayload struct {
 	IsPull      bool `json:"isPull"`
 	IsPullSnake bool `json:"is_pull"`
-	Number      int  `json:"number"`
+	Number      flexInt `json:"number"`
 	Issue       struct {
-		Number      int                    `json:"number"`
-		Index       int                    `json:"index"`
-		IID         int                    `json:"iid"`
+		Number      flexInt                `json:"number"`
+		Index       flexInt                `json:"index"`
+		IID         flexInt                `json:"iid"`
 		Title       string                 `json:"title"`
 		Body        string                 `json:"body"`
 		State       string                 `json:"state"`
@@ -52,7 +52,7 @@ type issueCommentPayload struct {
 }
 
 func (p issueCommentPayload) pr() pullRequestBodyPayload {
-	if p.PullRequest.Number > 0 || p.PullRequest.Title != "" || p.PullRequest.url() != "" {
+	if p.PullRequest.Number.Int() > 0 || p.PullRequest.Title != "" || p.PullRequest.url() != "" {
 		return p.PullRequest
 	}
 	return p.PullRequestSnake
@@ -74,7 +74,7 @@ func fillIssueComment(event *events.Event, body []byte) error {
 	event.Comment.Mentions = mentionsFrom(payload.Comment.Body, event.Comment.Author)
 
 	pr := payload.pr()
-	isPR := payload.IsPull || payload.IsPullSnake || payload.Issue.Title != "" || payload.Issue.Number > 0 || pr.Number > 0 || pullsURLRe.Match(body)
+	isPR := payload.IsPull || payload.IsPullSnake || payload.Issue.Title != "" || payload.Issue.Number.Int() > 0 || pr.Number.Int() > 0 || pullsURLRe.Match(body)
 	if isPR {
 		url := firstNonEmpty(
 			pr.url(),
@@ -93,11 +93,11 @@ func fillIssueComment(event *events.Event, body []byte) error {
 		)
 		event.PullRequest = events.PullRequestInfo{
 			Number: firstPositive(
-				pr.Number,
-				payload.Issue.Number,
-				payload.Issue.Index,
-				payload.Issue.IID,
-				payload.Number,
+				pr.Number.Int(),
+				payload.Issue.Number.Int(),
+				payload.Issue.Index.Int(),
+				payload.Issue.IID.Int(),
+				payload.Number.Int(),
 				prNumberFromRaw(body),
 				prNumberFromURL(
 					url,
@@ -133,9 +133,120 @@ func fillIssueComment(event *events.Event, body []byte) error {
 				payload.Comment.URL,
 			)
 		}
+		applyScannedPR(event, body)
 	}
 
 	return nil
+}
+
+func applyScannedPR(event *events.Event, body []byte) {
+	number, url, repo := scanPayloadForPR(body)
+	if event.PullRequest.Number <= 0 {
+		event.PullRequest.Number = number
+	}
+	if event.PullRequest.URL == "" {
+		event.PullRequest.URL = url
+	}
+	if event.Repository == "" {
+		event.Repository = repo
+	}
+}
+
+var prNumberKeys = map[string]struct{}{
+	"number": {}, "index": {}, "iid": {},
+	"pull_number": {}, "pullnumber": {}, "pr_number": {}, "prnumber": {},
+	"issue_number": {}, "issuenumber": {}, "issue_index": {}, "issueindex": {},
+	"local_id": {}, "localid": {},
+}
+
+func scanPayloadForPR(body []byte) (number int, url, repo string) {
+	var raw any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return 0, "", ""
+	}
+	var bestNumber, bestScore int
+	var walk func(v any, path []string)
+	walk = func(v any, path []string) {
+		switch node := v.(type) {
+		case map[string]any:
+			for key, child := range node {
+				walk(child, append(path, key))
+			}
+		case []any:
+			for _, child := range node {
+				walk(child, path)
+			}
+		case string:
+			if url == "" {
+				if u := toPullHTMLURL(node); u != "" {
+					url = u
+				} else if match := pullsURLRe.FindString(node); match != "" {
+					url = match
+				}
+			}
+			if repo == "" {
+				repo = RepoPathFromURL(node)
+			}
+			if n := prNumberFromURL(node); n > 0 && bestNumber == 0 {
+				bestNumber, bestScore = n, 4
+			}
+		default:
+			if len(path) == 0 {
+				return
+			}
+			key := strings.ToLower(path[len(path)-1])
+			if _, ok := prNumberKeys[key]; !ok {
+				return
+			}
+			if pathHasFold(path, "comment") && !pathHasFold(path, "issue") && !pathHasFold(path, "pull") {
+				return
+			}
+			n := coercePositiveInt(node)
+			if n <= 0 {
+				return
+			}
+			score := 1
+			if pathHasFold(path, "issue") || pathHasFold(path, "pull_request") || pathHasFold(path, "pullrequest") {
+				score = 3
+			} else if len(path) == 1 && key == "number" {
+				score = 2
+			}
+			if score > bestScore {
+				bestNumber, bestScore = n, score
+			}
+		}
+	}
+	walk(raw, nil)
+	return bestNumber, url, repo
+}
+
+func pathHasFold(path []string, part string) bool {
+	for _, p := range path {
+		if strings.Contains(strings.ToLower(p), part) {
+			return true
+		}
+	}
+	return false
+}
+
+func coercePositiveInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case json.Number:
+		v, _ := n.Int64()
+		return int(v)
+	case string:
+		var parsed int
+		if _, err := fmt.Sscanf(strings.TrimSpace(n), "%d", &parsed); err == nil {
+			return parsed
+		}
+	}
+	return 0
 }
 
 // RepoPathFromURL extracts owner/repo from a GitVerse UI or API pull/issue URL.

@@ -1,6 +1,8 @@
 package gitverse
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -178,4 +180,82 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+var (
+	draftPrefixRe = regexp.MustCompile(`(?i)^(draft|wip|черновик):\s*`)
+	issueKeyRe    = regexp.MustCompile(`\b[A-Z][A-Z0-9]+-\d+\b`)
+)
+
+func NormalizePRTitle(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Join(strings.Fields(s), " ")
+	s = draftPrefixRe.ReplaceAllString(s, "")
+	return strings.TrimSpace(s)
+}
+
+func titlesMatch(got, want string) bool {
+	g, w := NormalizePRTitle(got), NormalizePRTitle(want)
+	if g == "" || w == "" {
+		return false
+	}
+	if g == w {
+		return true
+	}
+	return strings.Contains(g, w) || strings.Contains(w, g)
+}
+
+func issueKeyIn(title string) string {
+	return issueKeyRe.FindString(title)
+}
+
+func decodePullRequests(body []byte) ([]PullRequest, error) {
+	body = bytes.TrimSpace(body)
+	if len(body) == 0 {
+		return nil, nil
+	}
+	if body[0] == '[' {
+		var prs []PullRequest
+		if err := json.Unmarshal(body, &prs); err != nil {
+			return nil, err
+		}
+		return prs, nil
+	}
+	var wrap map[string]json.RawMessage
+	if err := json.Unmarshal(body, &wrap); err != nil {
+		return nil, err
+	}
+	for _, key := range []string{"data", "items", "pulls", "values", "result", "list", "content"} {
+		raw, ok := wrap[key]
+		if !ok {
+			continue
+		}
+		prs, err := decodePullRequests(raw)
+		if err == nil && len(prs) > 0 {
+			return prs, nil
+		}
+	}
+	for _, raw := range wrap {
+		var prs []PullRequest
+		if json.Unmarshal(raw, &prs) == nil && len(prs) > 0 && strings.TrimSpace(prs[0].Title) != "" {
+			return prs, nil
+		}
+	}
+	return nil, nil
+}
+
+func uniquePRs(in []*PullRequest) []*PullRequest {
+	seen := map[int]struct{}{}
+	out := make([]*PullRequest, 0, len(in))
+	for _, pr := range in {
+		if pr == nil || pr.Number <= 0 {
+			continue
+		}
+		if _, ok := seen[pr.Number]; ok {
+			continue
+		}
+		seen[pr.Number] = struct{}{}
+		out = append(out, pr)
+	}
+	return out
 }

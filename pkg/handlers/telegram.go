@@ -67,6 +67,15 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 	}
 	body = clipTelegramText(body)
 
+	if event.Type == events.PullRequestComment && event.PullRequest.Number <= 0 {
+		logger.Warn(ctx, "telegram PR comment has no pull request number",
+			"action", a.Name(),
+			"repository", event.Repository,
+			"title", event.PullRequest.Title,
+			"pr-url", event.PullRequest.URL,
+		)
+	}
+
 	logger.Debug(ctx, "rendered telegram message body",
 		"action", a.Name(),
 		"body", body,

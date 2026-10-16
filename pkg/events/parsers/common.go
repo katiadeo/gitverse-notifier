@@ -44,8 +44,10 @@ type repositoryPayload struct {
 	FullNameSnake string `json:"full_name"`
 	Name          string `json:"name"`
 	Owner         struct {
-		Login string `json:"login"`
-		Name  string `json:"name"`
+		Login    string `json:"login"`
+		Name     string `json:"name"`
+		Username string `json:"username"`
+		UserName string `json:"userName"`
 	} `json:"owner"`
 }
 
@@ -53,7 +55,7 @@ func (r repositoryPayload) repositoryName() string {
 	if name := firstNonEmpty(r.FullName, r.FullNameSnake); name != "" {
 		return name
 	}
-	owner := firstNonEmpty(r.Owner.Login, r.Owner.Name)
+	owner := firstNonEmpty(r.Owner.Login, r.Owner.Username, r.Owner.UserName, r.Owner.Name)
 	if owner != "" && strings.TrimSpace(r.Name) != "" {
 		return owner + "/" + strings.TrimSpace(r.Name)
 	}
@@ -64,6 +66,7 @@ type commonPayload struct {
 	Action     string            `json:"action"`
 	Ref        string            `json:"ref"`
 	Repository repositoryPayload `json:"repository"`
+	Repo       repositoryPayload `json:"repo"`
 	Sender     actorPayload      `json:"sender"`
 	Pusher     actorPayload      `json:"pusher"`
 }
@@ -81,7 +84,7 @@ func fillCommon(event *events.Event, body []byte) error {
 	event.Action = payload.Action
 	event.Ref = payload.Ref
 	event.Branch = events.BranchName(payload.Ref)
-	event.Repository = payload.Repository.repositoryName()
+	event.Repository = firstNonEmpty(payload.Repository.repositoryName(), payload.Repo.repositoryName())
 	event.Sender = payload.Sender.toActor()
 
 	if event.Sender == (events.Actor{}) {
@@ -120,6 +123,43 @@ func uniqueActors(list ...actorPayload) []events.Actor {
 		out = append(out, actor)
 	}
 	return out
+}
+
+type flexInt int
+
+func (n *flexInt) UnmarshalJSON(data []byte) error {
+	data = bytesTrimJSON(data)
+	if len(data) == 0 || string(data) == "null" || string(data) == `""` {
+		*n = 0
+		return nil
+	}
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			*n = 0
+			return nil
+		}
+		var v int
+		if _, err := fmt.Sscanf(strings.TrimSpace(s), "%d", &v); err != nil {
+			*n = 0
+			return nil
+		}
+		*n = flexInt(v)
+		return nil
+	}
+	var v int
+	if err := json.Unmarshal(data, &v); err != nil {
+		*n = 0
+		return nil
+	}
+	*n = flexInt(v)
+	return nil
+}
+
+func (n flexInt) Int() int { return int(n) }
+
+func bytesTrimJSON(data []byte) []byte {
+	return []byte(strings.TrimSpace(string(data)))
 }
 
 func firstNonEmpty(values ...string) string {

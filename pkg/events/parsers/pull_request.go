@@ -13,7 +13,7 @@ type prBranchPayload struct {
 }
 
 type pullRequestBodyPayload struct {
-	Number             int             `json:"number"`
+	Number             flexInt         `json:"number"`
 	Title              string          `json:"title"`
 	Body               string          `json:"body"`
 	State              string          `json:"state"`
@@ -32,7 +32,7 @@ func (p pullRequestBodyPayload) url() string {
 }
 
 type pullRequestPayload struct {
-	Number             int                    `json:"number"`
+	Number             flexInt                `json:"number"`
 	PullRequest        pullRequestBodyPayload `json:"pullRequest"`
 	PullRequestSnake   pullRequestBodyPayload `json:"pull_request"`
 	RequestedReviewer  actorPayload           `json:"requested_reviewer"`
@@ -45,7 +45,7 @@ type pullRequestPayload struct {
 }
 
 func (p pullRequestPayload) pr() pullRequestBodyPayload {
-	if p.PullRequest.Title != "" || p.PullRequest.Number > 0 || p.PullRequest.url() != "" {
+	if p.PullRequest.Title != "" || p.PullRequest.Number.Int() > 0 || p.PullRequest.url() != "" {
 		return p.PullRequest
 	}
 	return p.PullRequestSnake
@@ -60,7 +60,7 @@ func fillPullRequest(event *events.Event, body []byte) error {
 	pr := payload.pr()
 	url := firstNonEmpty(pr.url(), prURLFromRaw(body))
 	event.PullRequest = events.PullRequestInfo{
-		Number:    firstPositive(pr.Number, payload.Number, prNumberFromRaw(body), prNumberFromURL(url)),
+		Number:    firstPositive(pr.Number.Int(), payload.Number.Int(), prNumberFromRaw(body), prNumberFromURL(url)),
 		Title:     pr.Title,
 		Body:      pr.Body,
 		State:     pr.State,
@@ -84,5 +84,6 @@ func fillPullRequest(event *events.Event, body []byte) error {
 		}
 	}
 
+	applyScannedPR(event, body)
 	return nil
 }
