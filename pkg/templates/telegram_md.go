@@ -143,11 +143,7 @@ func mdToTelegramV2(s string) string {
 		if strings.HasPrefix(s[i:], "```") {
 			end := strings.Index(s[i+3:], "```")
 			if end >= 0 {
-				code := s[i+3 : i+3+end]
-				code = strings.Trim(code, "\n")
-				b.WriteString("```")
-				b.WriteString(escapeTelegramCode(code))
-				b.WriteString("```")
+				writeTelegramFence(&b, s[i+3:i+3+end])
 				i += 6 + end
 				continue
 			}
@@ -188,6 +184,50 @@ func mdToTelegramV2(s string) string {
 
 func escapeTelegramCode(s string) string {
 	return strings.NewReplacer("\\", "\\\\", "`", "\\`").Replace(s)
+}
+
+// writeTelegramFence emits a MarkdownV2 pre block. Telegram treats the first
+// word after ``` as a language tag unless there is a newline, so a one-line
+// fence like ```Testing gitverse bot``` would show "Testing" as the language.
+func writeTelegramFence(b *strings.Builder, body string) {
+	lang, code := splitFenceBody(body)
+	b.WriteString("```")
+	if lang != "" {
+		b.WriteString(lang)
+	}
+	b.WriteByte('\n')
+	b.WriteString(escapeTelegramCode(code))
+	if !strings.HasSuffix(code, "\n") {
+		b.WriteByte('\n')
+	}
+	b.WriteString("```")
+}
+
+func splitFenceBody(body string) (lang, code string) {
+	body = strings.Trim(body, "\n")
+	nl := strings.IndexByte(body, '\n')
+	if nl < 0 {
+		return "", body
+	}
+	first := strings.TrimSpace(body[:nl])
+	if !isFenceLang(first) {
+		return "", body
+	}
+	return first, strings.TrimPrefix(body[nl+1:], "\n")
+}
+
+func isFenceLang(s string) bool {
+	if s == "" || len(s) > 20 {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case unicode.IsLetter(r), unicode.IsDigit(r), r == '+', r == '-', r == '_':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func writeTGSpan(b *strings.Builder, open, close, inner string) {

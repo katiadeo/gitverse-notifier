@@ -42,13 +42,22 @@ func firstActor(actors ...actorPayload) events.Actor {
 type repositoryPayload struct {
 	FullName      string `json:"fullName"`
 	FullNameSnake string `json:"full_name"`
+	Name          string `json:"name"`
+	Owner         struct {
+		Login string `json:"login"`
+		Name  string `json:"name"`
+	} `json:"owner"`
 }
 
 func (r repositoryPayload) repositoryName() string {
-	if r.FullName != "" {
-		return r.FullName
+	if name := firstNonEmpty(r.FullName, r.FullNameSnake); name != "" {
+		return name
 	}
-	return r.FullNameSnake
+	owner := firstNonEmpty(r.Owner.Login, r.Owner.Name)
+	if owner != "" && strings.TrimSpace(r.Name) != "" {
+		return owner + "/" + strings.TrimSpace(r.Name)
+	}
+	return ""
 }
 
 type commonPayload struct {

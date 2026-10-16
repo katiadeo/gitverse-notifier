@@ -72,7 +72,7 @@ func TestTelegramPlain(t *testing.T) {
 func TestTelegramPR(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 	require.Equal(t, "PR", TelegramPR(events.PullRequestInfo{}))
-	require.Equal(t, "[PR](https://git.example/pulls/218)", TelegramPR(events.PullRequestInfo{
+	require.Equal(t, "[\\#218](https://git.example/pulls/218)", TelegramPR(events.PullRequestInfo{
 		URL: "https://git.example/pulls/218",
 	}))
 	require.Equal(t, "[\\#218](https://git.example/pulls/218)", TelegramPR(events.PullRequestInfo{
@@ -146,7 +146,19 @@ func TestTelegramMD(t *testing.T) {
 	require.Equal(t, "~old~ and __under__", got)
 
 	got = TelegramMD("```\nline 1\nline 2\n```")
-	require.Equal(t, "```line 1\nline 2```", got)
+	require.Equal(t, "```\nline 1\nline 2\n```", got)
+
+	got = TelegramMD("```Testing gitverse bot```")
+	require.Equal(t, "```\nTesting gitverse bot\n```", got)
+
+	got = TelegramMD("<pre>Testing gitverse bot</pre>")
+	require.Equal(t, "```\nTesting gitverse bot\n```", got)
+
+	got = TelegramMD("```go\nfmt.Println()\n```")
+	require.Equal(t, "```go\nfmt.Println()\n```", got)
+
+	got = TelegramMD("Testing gitverse bot")
+	require.Equal(t, "Testing gitverse bot", got)
 
 	got = TelegramMD("leave foo_bar alone")
 	require.Equal(t, "leave foo\\_bar alone", got)

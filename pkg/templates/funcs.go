@@ -124,7 +124,7 @@ func TelegramLink(text, link string) string {
 	if link == "" {
 		return text
 	}
-
+	link = strings.NewReplacer(`\`, `\\`, `)`, `\)`).Replace(link)
 	return fmt.Sprintf("[%s](%s)", text, link)
 }
 
@@ -223,9 +223,17 @@ func TelegramPlain(s string) string {
 	return mdToTelegramV2(s)
 }
 
+var telegramPRNumberRe = regexp.MustCompile(`/(?:pulls?|issues)/(\d+)`)
+
 func TelegramPR(pr events.PullRequestInfo) string {
-	if pr.Number > 0 {
-		return TelegramLink(fmt.Sprintf("#%d", pr.Number), pr.URL)
+	number := pr.Number
+	if number <= 0 {
+		if match := telegramPRNumberRe.FindStringSubmatch(pr.URL); len(match) == 2 {
+			_, _ = fmt.Sscanf(match[1], "%d", &number)
+		}
+	}
+	if number > 0 {
+		return TelegramLink(fmt.Sprintf("#%d", number), pr.URL)
 	}
 	if pr.URL != "" {
 		return TelegramLink("PR", pr.URL)

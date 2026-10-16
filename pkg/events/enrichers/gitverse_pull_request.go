@@ -52,6 +52,7 @@ func (e *GitversePullRequest) Enrich(ctx context.Context, event *events.Event) e
 }
 
 func applyPullRequest(event *events.Event, pr *gitverse.PullRequest) {
+	pr.Normalize()
 	if pr.Number > 0 {
 		event.PullRequest.Number = pr.Number
 	}

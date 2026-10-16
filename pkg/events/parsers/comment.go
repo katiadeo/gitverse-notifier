@@ -13,6 +13,7 @@ var (
 	pullsURLRe     = regexp.MustCompile(`https?://[^\s"'<>]+/(?:pulls?|issues)/\d+`)
 	pullsNumberRe  = regexp.MustCompile(`/(?:pulls?|issues)/(\d+)`)
 	apiRepoURLRe   = regexp.MustCompile(`^(https?://[^/]+)(?:/api/v\d+)?/repos/([^/]+/[^/]+)/(?:issues|pulls)/(\d+)`)
+	uiRepoURLRe    = regexp.MustCompile(`^https?://[^/]+/([^/]+/[^/]+)/(?:pulls?|issues)/\d+`)
 	issuePathNumRe = regexp.MustCompile(`/issues/(\d+)$`)
 	mentionRe      = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_-]+)`)
 )
@@ -40,9 +41,12 @@ type issueCommentPayload struct {
 		Body           string       `json:"body"`
 		User           actorPayload `json:"user"`
 		HTMLURL        string       `json:"html_url"`
+		HTMLUrl        string       `json:"htmlUrl"`
 		URL            string       `json:"url"`
 		PullRequestURL string       `json:"pull_request_url"`
+		PullRequestUrl string       `json:"pullRequestUrl"`
 		IssueURL       string       `json:"issue_url"`
+		IssueUrl       string       `json:"issueUrl"`
 	} `json:"comment"`
 	Sender actorPayload `json:"sender"`
 }
@@ -79,9 +83,12 @@ func fillIssueComment(event *events.Event, body []byte) error {
 			toPullHTMLURL(payload.Issue.URL),
 			payload.Issue.PullRequest.url(),
 			toPullHTMLURL(payload.Comment.PullRequestURL),
+			toPullHTMLURL(payload.Comment.PullRequestUrl),
 			toPullHTMLURL(payload.Comment.HTMLURL),
+			toPullHTMLURL(payload.Comment.HTMLUrl),
 			toPullHTMLURL(payload.Comment.URL),
 			toPullHTMLURL(payload.Comment.IssueURL),
+			toPullHTMLURL(payload.Comment.IssueUrl),
 			prURLFromRaw(body),
 		)
 		event.PullRequest = events.PullRequestInfo{
@@ -92,7 +99,16 @@ func fillIssueComment(event *events.Event, body []byte) error {
 				payload.Issue.IID,
 				payload.Number,
 				prNumberFromRaw(body),
-				prNumberFromURL(url, payload.Comment.HTMLURL, payload.Comment.IssueURL, payload.Comment.URL),
+				prNumberFromURL(
+					url,
+					payload.Comment.HTMLURL,
+					payload.Comment.HTMLUrl,
+					payload.Comment.IssueURL,
+					payload.Comment.IssueUrl,
+					payload.Comment.PullRequestURL,
+					payload.Comment.PullRequestUrl,
+					payload.Comment.URL,
+				),
 			),
 			Title:   firstNonEmpty(pr.Title, payload.Issue.Title),
 			Body:    firstNonEmpty(pr.Body, payload.Issue.Body),
@@ -103,9 +119,45 @@ func fillIssueComment(event *events.Event, body []byte) error {
 			BaseRef: firstNonEmpty(pr.Base.Ref, pr.Base.Label),
 			Merged:  pr.Merged || payload.Issue.PullRequest.Merged,
 		}
+		if event.Repository == "" {
+			event.Repository = RepoPathFromURL(
+				url,
+				payload.Issue.HTMLURL,
+				payload.Issue.HTMLUrl,
+				payload.Issue.URL,
+				payload.Comment.IssueURL,
+				payload.Comment.IssueUrl,
+				payload.Comment.HTMLURL,
+				payload.Comment.HTMLUrl,
+				payload.Comment.PullRequestURL,
+				payload.Comment.URL,
+			)
+		}
 	}
 
 	return nil
+}
+
+// RepoPathFromURL extracts owner/repo from a GitVerse UI or API pull/issue URL.
+func RepoPathFromURL(values ...string) string {
+	for _, raw := range values {
+		raw = strings.TrimSpace(strings.Split(raw, "#")[0])
+		if raw == "" {
+			continue
+		}
+		if matches := apiRepoURLRe.FindStringSubmatch(raw); len(matches) == 4 {
+			return matches[2]
+		}
+		if matches := uiRepoURLRe.FindStringSubmatch(raw); len(matches) == 2 {
+			return matches[1]
+		}
+	}
+	return ""
+}
+
+// PRNumberFromURL extracts a pull/issue number from GitVerse URLs.
+func PRNumberFromURL(values ...string) int {
+	return prNumberFromURL(values...)
 }
 
 func prNumberFromRaw(body []byte) int {
@@ -126,12 +178,17 @@ func prNumberFromRaw(body []byte) int {
 			string(body),
 			jsonPathString(raw, "issue", "url"),
 			jsonPathString(raw, "issue", "html_url"),
+			jsonPathString(raw, "issue", "htmlUrl"),
 			jsonPathString(raw, "comment", "html_url"),
+			jsonPathString(raw, "comment", "htmlUrl"),
 			jsonPathString(raw, "comment", "issue_url"),
+			jsonPathString(raw, "comment", "issueUrl"),
 			jsonPathString(raw, "comment", "url"),
 			jsonPathString(raw, "comment", "pull_request_url"),
+			jsonPathString(raw, "comment", "pullRequestUrl"),
 			jsonPathString(raw, "pull_request", "url"),
 			jsonPathString(raw, "pull_request", "html_url"),
+			jsonPathString(raw, "pull_request", "htmlUrl"),
 		),
 	)
 }

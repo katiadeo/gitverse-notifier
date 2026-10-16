@@ -60,6 +60,7 @@ func (c *Client) GetPullRequest(ctx context.Context, repository string, number i
 			resp.StatusCode(), resp.Request.URL, string(resp.Body()))
 	}
 
+	pr.Normalize()
 	return &pr, nil
 }
 
@@ -113,34 +114,54 @@ func (c *Client) CreateIssueComment(ctx context.Context, repository string, issu
 }
 
 func (c *Client) FindPullRequestByTitle(ctx context.Context, repository, title string) (*PullRequest, error) {
-	title = strings.TrimSpace(title)
-	if repository == "" || title == "" {
+	want := normalizePRTitle(title)
+	if repository == "" || want == "" {
 		return nil, nil
 	}
 
 	for _, state := range []string{"open", "all"} {
-		var prs []PullRequest
-		resp, err := c.resty.R().
-			SetContext(ctx).
-			SetQueryParams(map[string]string{
-				"state":    state,
-				"per_page": "100",
-			}).
-			SetResult(&prs).
-			Get("/repos/" + repoAPIPath(repository) + "/pulls")
-		if err != nil {
-			return nil, fmt.Errorf("failed to make gitverse request: %w", err)
-		}
-		if resp.IsError() {
-			return nil, fmt.Errorf("gitverse api returned %d for %s: %s",
-				resp.StatusCode(), resp.Request.URL, string(resp.Body()))
-		}
-		for i := range prs {
-			if strings.TrimSpace(prs[i].Title) == title {
-				return &prs[i], nil
+		for page := 1; page <= 10; page++ {
+			var prs []PullRequest
+			resp, err := c.resty.R().
+				SetContext(ctx).
+				SetQueryParams(map[string]string{
+					"state":    state,
+					"per_page": "100",
+					"page":     fmt.Sprintf("%d", page),
+				}).
+				SetResult(&prs).
+				Get("/repos/" + repoAPIPath(repository) + "/pulls")
+			if err != nil {
+				return nil, fmt.Errorf("failed to make gitverse request: %w", err)
+			}
+			if resp.IsError() {
+				return nil, fmt.Errorf("gitverse api returned %d for %s: %s",
+					resp.StatusCode(), resp.Request.URL, string(resp.Body()))
+			}
+			for i := range prs {
+				prs[i].Normalize()
+				if titlesMatch(prs[i].Title, want) {
+					return &prs[i], nil
+				}
+			}
+			if len(prs) < 100 {
+				break
 			}
 		}
 	}
 
 	return nil, nil
+}
+
+func normalizePRTitle(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Join(strings.Fields(s), " ")
+	for _, prefix := range []string{"Draft: ", "WIP: "} {
+		s = strings.TrimPrefix(s, prefix)
+	}
+	return strings.TrimSpace(s)
+}
+
+func titlesMatch(got, want string) bool {
+	return normalizePRTitle(got) == want
 }

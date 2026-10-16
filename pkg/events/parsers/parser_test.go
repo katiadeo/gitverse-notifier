@@ -286,6 +286,33 @@ func TestParseEvent_IssueComment_NumberFromGitAPIIssueURL(t *testing.T) {
 	assert.Equal(t, "edited", event.Action)
 }
 
+func TestParseEvent_IssueComment_NumberFromCamelCaseHTMLUrl(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":  "edited",
+		"is_pull": true,
+		"repository": map[string]any{
+			"name":  "fcs-frontend",
+			"owner": map[string]any{"login": "bks-frontend"},
+		},
+		"sender": map[string]any{"login": "alice"},
+		"issue": map[string]any{
+			"title": "STKPVT-1184 [FE] Доработка формы добавления ОК в ДТК в части вызова реста",
+			"user":  map[string]any{"login": "bob"},
+		},
+		"comment": map[string]any{
+			"body":    "STKPVT-1184",
+			"htmlUrl": "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/390#issuecomment-1",
+			"user":    map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 390, event.PullRequest.Number)
+	assert.Equal(t, "bks-frontend/fcs-frontend", event.Repository)
+	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/390", event.PullRequest.URL)
+}
+
 func TestParseEvent_IssueComment_NumberFromPullRequestObject(t *testing.T) {
 	body := mustJSON(t, map[string]any{
 		"repository":  map[string]any{"fullName": "org/app"},

@@ -1,6 +1,13 @@
 package gitverse
 
-import "time"
+import (
+	"fmt"
+	"regexp"
+	"strings"
+	"time"
+)
+
+var pullNumberRe = regexp.MustCompile(`/(?:pulls?|issues)/(\d+)`)
 
 type User struct {
 	ID       int64  `json:"id"`
@@ -44,7 +51,9 @@ type PullRequest struct {
 	ID                  int64      `json:"id"`
 	URL                 string     `json:"url"`
 	HTMLURL             string     `json:"html_url"`
+	HTMLUrl             string     `json:"htmlUrl"`
 	Number              int        `json:"number"`
+	Index               int        `json:"index"`
 	User                User       `json:"user"`
 	Title               string     `json:"title"`
 	Body                string     `json:"body"`
@@ -132,4 +141,41 @@ type CommitInfo struct {
 	Parents   []CommitParent `json:"parents"`
 	Stats     CommitStats    `json:"stats"`
 	Files     []CommitFile   `json:"files"`
+}
+
+func (p *PullRequest) Normalize() {
+	if p == nil {
+		return
+	}
+	if p.Number <= 0 {
+		p.Number = p.Index
+	}
+	if p.Number <= 0 {
+		p.Number = pullNumberFromURL(p.HTMLURL, p.HTMLUrl, p.URL)
+	}
+	if strings.TrimSpace(p.HTMLURL) == "" {
+		p.HTMLURL = firstNonEmpty(p.HTMLUrl, p.URL)
+	}
+}
+
+func pullNumberFromURL(values ...string) int {
+	for _, value := range values {
+		if match := pullNumberRe.FindStringSubmatch(value); len(match) == 2 {
+			var n int
+			if _, err := fmt.Sscanf(match[1], "%d", &n); err == nil && n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

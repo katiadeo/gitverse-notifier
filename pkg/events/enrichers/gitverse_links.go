@@ -8,6 +8,7 @@ import (
 
 	"gitverse-notifier/pkg/config"
 	"gitverse-notifier/pkg/events"
+	"gitverse-notifier/pkg/events/parsers"
 	"gitverse-notifier/pkg/settings"
 )
 
@@ -34,6 +35,12 @@ func (e *GitverseLinks) Enrich(_ context.Context, event *events.Event) error {
 	e.addUserURL(baseURL, &event.PullRequest.Author)
 	e.addUserURL(baseURL, &event.Comment.Author)
 
+	if event.PullRequest.Number <= 0 {
+		event.PullRequest.Number = parsers.PRNumberFromURL(event.PullRequest.URL)
+	}
+	if event.Repository == "" {
+		event.Repository = parsers.RepoPathFromURL(event.PullRequest.URL)
+	}
 	if event.Repository == "" {
 		return nil
 	}
