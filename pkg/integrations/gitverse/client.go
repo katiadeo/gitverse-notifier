@@ -123,12 +123,14 @@ func (c *Client) FindPullRequestByTitle(ctx context.Context, repository, title s
 	wantKey := issueKeyIn(want)
 
 	for _, state := range []string{"open", "opened", "all"} {
-		for page := 1; page <= 10; page++ {
+		pageSize := 0
+		for page := 1; page <= 20; page++ {
 			resp, err := c.resty.R().
 				SetContext(ctx).
 				SetQueryParams(map[string]string{
 					"state":    state,
 					"per_page": "100",
+					"limit":    "100",
 					"page":     fmt.Sprintf("%d", page),
 				}).
 				Get("/repos/" + repoAPIPath(repository) + "/pulls")
@@ -136,12 +138,21 @@ func (c *Client) FindPullRequestByTitle(ctx context.Context, repository, title s
 				return nil, fmt.Errorf("failed to make gitverse request: %w", err)
 			}
 			if resp.IsError() {
+				if resp.StatusCode() >= 400 && resp.StatusCode() < 500 {
+					break
+				}
 				return nil, fmt.Errorf("gitverse api returned %d for %s: %s",
 					resp.StatusCode(), resp.Request.URL, string(resp.Body()))
 			}
 			prs, err := decodePullRequests(resp.Body())
 			if err != nil {
 				return nil, fmt.Errorf("failed to decode gitverse pulls: %w", err)
+			}
+			if len(prs) == 0 {
+				break
+			}
+			if page == 1 {
+				pageSize = len(prs)
 			}
 			for i := range prs {
 				prs[i].Normalize()
@@ -152,7 +163,7 @@ func (c *Client) FindPullRequestByTitle(ctx context.Context, repository, title s
 					fallback = append(fallback, &prs[i])
 				}
 			}
-			if len(prs) < 100 {
+			if pageSize == 0 || len(prs) < pageSize {
 				break
 			}
 		}
