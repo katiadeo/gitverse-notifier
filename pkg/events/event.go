@@ -84,6 +84,7 @@ type Event struct {
 	Sender        Actor
 	PullRequest   PullRequestInfo
 	Comment       CommentInfo
+	Comments      []CommentInfo
 	Push          PushInfo
 	Status        StatusInfo
 	IssueKeys     []string

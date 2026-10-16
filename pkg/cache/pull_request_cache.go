@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -81,6 +82,9 @@ func (s *MemoryPullRequestCache) Set(repo, title string, number int, pr *gitvers
 	if title != "" && title != normalized {
 		s.cache.Set(prNumberCacheKey(repo, title), number, gocache.NoExpiration)
 	}
+	if issueKey := prIssueKeyCacheKey(repo, title); issueKey != "" {
+		s.cache.Set(issueKey, number, gocache.NoExpiration)
+	}
 	s.persistNumbers()
 }
 
@@ -88,6 +92,11 @@ func (s *MemoryPullRequestCache) GetPRNumber(repo, title string) int {
 	value, ok := s.cache.Get(prNumberCacheKey(repo, gitverse.NormalizePRTitle(title)))
 	if !ok {
 		value, ok = s.cache.Get(prNumberCacheKey(repo, title))
+	}
+	if !ok {
+		if issueKey := prIssueKeyCacheKey(repo, title); issueKey != "" {
+			value, ok = s.cache.Get(issueKey)
+		}
 	}
 	if !ok {
 		return 0
@@ -156,8 +165,21 @@ func (s *MemoryPullRequestCache) loadNumbers() {
 	for key, number := range stored.Numbers {
 		if number > 0 && key != "" {
 			s.cache.Set(key, number, gocache.NoExpiration)
+			if repo, title, ok := splitPRNumberCacheKey(key); ok {
+				if issueKey := prIssueKeyCacheKey(repo, title); issueKey != "" {
+					s.cache.Set(issueKey, number, gocache.NoExpiration)
+				}
+			}
 		}
 	}
+}
+
+func splitPRNumberCacheKey(key string) (repo, title string, ok bool) {
+	if strings.Contains(key, "|key:") {
+		return "", "", false
+	}
+	repo, title, ok = strings.Cut(key, "|")
+	return repo, title, ok && title != ""
 }
 
 func prNumbersPath() string {
@@ -177,4 +199,12 @@ func prCacheKey(repo string, number int) string {
 
 func prNumberCacheKey(repo, title string) string {
 	return fmt.Sprintf("%s|%s", repo, title)
+}
+
+func prIssueKeyCacheKey(repo, title string) string {
+	key := gitverse.IssueKeyFromTitle(title)
+	if key == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s|key:%s", repo, key)
 }

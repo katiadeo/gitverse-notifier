@@ -24,6 +24,7 @@ type Data struct {
 	Sender        events.Actor
 	PullRequest   events.PullRequestInfo
 	Comment       events.CommentInfo
+	Comments      []events.CommentInfo
 	Push          events.PushInfo
 	Status        events.StatusInfo
 	IssueKeys     []string
@@ -42,6 +43,7 @@ func DataFromEvent(ev *events.Event) Data {
 		Sender:        ev.Sender,
 		PullRequest:   ev.PullRequest,
 		Comment:       ev.Comment,
+		Comments:      commentInfosFromEvent(ev),
 		Push:          ev.Push,
 		Status:        ev.Status,
 		IssueKeys:     ev.IssueKeys,
@@ -54,26 +56,41 @@ type Engine struct {
 
 func funcMap() template.FuncMap {
 	return template.FuncMap{
-		"jiraEscape":    JiraEscape,
-		"tgEscape":      TelegramEscape,
-		"trim":          strings.TrimSpace,
-		"join":          strings.Join,
-		"jiraLink":      JiraLink,
-		"mdLink":        MarkdownLink,
-		"tgLink":        TelegramLink,
-		"issueURL":      IssueURL,
-		"tgIssueURLs":   TelegramIssueURLs,
-		"mdIssueURLs":   MarkdownIssueURLs,
-		"jiraIssueURLs": JiraIssueURLs,
-		"plain":         StripHTML,
-		"tgPlain":       TelegramPlain,
-		"tgMD":          TelegramMD,
-		"tgPR":          TelegramPR,
-		"tgPRBranches":  TelegramPRBranches,
-		"tgMention":     TelegramMention,
-		"tgMentions":    TelegramMentions,
-		"tgName":        TelegramName,
+		"jiraEscape":       JiraEscape,
+		"tgEscape":         TelegramEscape,
+		"trim":             strings.TrimSpace,
+		"join":             strings.Join,
+		"jiraLink":         JiraLink,
+		"mdLink":           MarkdownLink,
+		"tgLink":           TelegramLink,
+		"issueURL":         IssueURL,
+		"tgIssueURLs":      TelegramIssueURLs,
+		"mdIssueURLs":      MarkdownIssueURLs,
+		"jiraIssueURLs":    JiraIssueURLs,
+		"plain":            StripHTML,
+		"tgPlain":          TelegramPlain,
+		"tgMD":             TelegramMD,
+		"tgPR":             TelegramPR,
+		"tgPRBranches":     TelegramPRBranches,
+		"tgMention":        TelegramMention,
+		"tgMentions":       TelegramMentions,
+		"tgName":           TelegramName,
+		"tgNotifyAuthor":   TelegramNotifyAuthor,
+		"tgNotifyPRAuthor": TelegramNotifyPRAuthor,
 	}
+}
+
+func commentInfosFromEvent(ev *events.Event) []events.CommentInfo {
+	if ev == nil {
+		return nil
+	}
+	if len(ev.Comments) > 0 {
+		return ev.Comments
+	}
+	if ev.Comment.Author != (events.Actor{}) || strings.TrimSpace(ev.Comment.Body) != "" {
+		return []events.CommentInfo{ev.Comment}
+	}
+	return nil
 }
 
 func SetupTemplateEngine() (*Engine, error) {

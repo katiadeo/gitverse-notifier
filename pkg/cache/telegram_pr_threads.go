@@ -9,59 +9,102 @@ import (
 	"sync"
 
 	"gitverse-notifier/pkg/config"
+	"gitverse-notifier/pkg/events"
 	"gitverse-notifier/pkg/integrations/gitverse"
 	"gitverse-notifier/pkg/logger"
 )
 
 const telegramPRThreadsFileName = "telegram-pr-threads.json"
 
+type TelegramPRCard struct {
+	RootID     int            `json:"root_id"`
+	CommentID  int            `json:"comment_id"`
+	ExtraIDs   []int          `json:"extra_ids,omitempty"`
+	Repository string         `json:"repository"`
+	Number     int            `json:"number"`
+	Title      string         `json:"title"`
+	URL        string         `json:"url"`
+	PRAuthor   events.Actor   `json:"pr_author"`
+	Authors    []events.Actor `json:"authors"`
+}
+
 type TelegramPRThreads struct {
-	mu   sync.Mutex
-	path string
-	ids  map[string]int
+	mu    sync.Mutex
+	path  string
+	cards map[string]*TelegramPRCard
 }
 
 func NewTelegramPRThreads() *TelegramPRThreads {
 	s := &TelegramPRThreads{
-		path: telegramPRThreadsPath(),
-		ids:  map[string]int{},
+		path:  telegramPRThreadsPath(),
+		cards: map[string]*TelegramPRCard{},
 	}
 	s.load()
 	return s
 }
 
-func (s *TelegramPRThreads) Get(repo, title string, number int) int {
+func (s *TelegramPRThreads) Get(repo, title string, number int) *TelegramPRCard {
 	if s == nil {
-		return 0
+		return nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if number > 0 {
-		if id := s.ids[telegramThreadNumberKey(repo, number)]; id > 0 {
-			return id
-		}
-	}
-	if strings.TrimSpace(title) != "" {
-		return s.ids[telegramThreadTitleKey(repo, title)]
-	}
-	return 0
+	return clonePRCard(s.lookupLocked(repo, title, number))
 }
 
-func (s *TelegramPRThreads) Put(repo, title string, number, messageID int) {
-	if s == nil || messageID <= 0 {
+func (s *TelegramPRThreads) Put(card *TelegramPRCard) {
+	if s == nil || card == nil {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if number > 0 {
-		s.ids[telegramThreadNumberKey(repo, number)] = messageID
+	stored := clonePRCard(card)
+	if stored.Number > 0 {
+		s.cards[telegramThreadNumberKey(stored.Repository, stored.Number)] = stored
 	}
-	if strings.TrimSpace(title) != "" {
-		s.ids[telegramThreadTitleKey(repo, title)] = messageID
+	if strings.TrimSpace(stored.Title) != "" {
+		s.cards[telegramThreadTitleKey(stored.Repository, stored.Title)] = stored
 	}
 	s.persistLocked()
+}
+
+func (s *TelegramPRThreads) Remove(repo, title string, number int) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	card := s.lookupLocked(repo, title, number)
+	if card != nil {
+		if card.Number > 0 {
+			delete(s.cards, telegramThreadNumberKey(card.Repository, card.Number))
+		}
+		if strings.TrimSpace(card.Title) != "" {
+			delete(s.cards, telegramThreadTitleKey(card.Repository, card.Title))
+		}
+	}
+	if number > 0 {
+		delete(s.cards, telegramThreadNumberKey(repo, number))
+	}
+	if strings.TrimSpace(title) != "" {
+		delete(s.cards, telegramThreadTitleKey(repo, title))
+	}
+	s.persistLocked()
+}
+
+func (s *TelegramPRThreads) lookupLocked(repo, title string, number int) *TelegramPRCard {
+	if number > 0 {
+		if card := s.cards[telegramThreadNumberKey(repo, number)]; card != nil {
+			return card
+		}
+	}
+	if strings.TrimSpace(title) != "" {
+		return s.cards[telegramThreadTitleKey(repo, title)]
+	}
+	return nil
 }
 
 func (s *TelegramPRThreads) persistLocked() {
@@ -69,8 +112,8 @@ func (s *TelegramPRThreads) persistLocked() {
 		return
 	}
 	out := struct {
-		IDs map[string]int `json:"ids"`
-	}{IDs: s.ids}
+		Cards map[string]*TelegramPRCard `json:"cards"`
+	}{Cards: s.cards}
 	data, err := json.MarshalIndent(out, "", "  ")
 	if err != nil {
 		logger.Warn(nil, "failed to encode telegram PR threads", "err", err)
@@ -103,14 +146,21 @@ func (s *TelegramPRThreads) load() {
 		return
 	}
 	var stored struct {
-		IDs map[string]int `json:"ids"`
+		Cards map[string]*TelegramPRCard `json:"cards"`
+		IDs   map[string]int             `json:"ids"`
 	}
 	if err := json.Unmarshal(data, &stored); err != nil {
 		logger.Warn(nil, "failed to parse telegram PR threads", "err", err, "path", s.path)
 		return
 	}
-	if stored.IDs != nil {
-		s.ids = stored.IDs
+	if stored.Cards != nil {
+		s.cards = stored.Cards
+		return
+	}
+	for key, id := range stored.IDs {
+		if id > 0 {
+			s.cards[key] = &TelegramPRCard{RootID: id}
+		}
 	}
 }
 
@@ -127,4 +177,18 @@ func telegramThreadNumberKey(repo string, number int) string {
 
 func telegramThreadTitleKey(repo, title string) string {
 	return fmt.Sprintf("%s|%s", repo, gitverse.NormalizePRTitle(title))
+}
+
+func clonePRCard(card *TelegramPRCard) *TelegramPRCard {
+	if card == nil {
+		return nil
+	}
+	out := *card
+	if card.Authors != nil {
+		out.Authors = append([]events.Actor(nil), card.Authors...)
+	}
+	if card.ExtraIDs != nil {
+		out.ExtraIDs = append([]int(nil), card.ExtraIDs...)
+	}
+	return &out
 }

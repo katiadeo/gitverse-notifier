@@ -98,9 +98,8 @@ action_rules:
     action: utils.log
 
   - on: pull_request.closed
-    state: merged # Фильтрация по статусу закрытого PR (merged / closed)
     action: telegram.notify
-    template: telegram/pr_merged
+    template: telegram/pr_merged # merged: короткое сообщение, затем удаляем opened/комменты; closed: только удаляем
 
   - on: pull_request.review_requested
     action: telegram.notify

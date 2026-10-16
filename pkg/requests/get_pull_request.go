@@ -67,6 +67,9 @@ func (d *RequestsDispatcher) fetchAndCache(ctx context.Context, request GetPullR
 	}
 
 	d.prs.Set(request.Repo, pr.Title, pr.Number, pr)
+	if request.Title != "" && request.Title != pr.Title {
+		d.prs.Set(request.Repo, request.Title, pr.Number, pr)
+	}
 
 	return pr, nil
 }

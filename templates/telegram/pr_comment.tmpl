@@ -1,6 +1,10 @@
-{{- if .ThreadReply -}}
-comment by {{tgName .Comment.Author}}
-{{- else -}}
-{{tgPR .PullRequest}} · comment by {{tgName .Comment.Author}}{{if eq .Action "edited"}} · edited{{end}}
+{{- if not .ThreadReply -}}
+{{tgPR .PullRequest}}
 {{tgPlain .PullRequest.Title}}
-{{- end}}
+{{end -}}
+{{- range .Comments -}}
+↳ {{tgName .Author}}
+{{end -}}
+{{- with tgNotifyPRAuthor .Comments .PullRequest.Author -}}
+{{.}}
+{{- end -}}

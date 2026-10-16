@@ -19,6 +19,25 @@ func TestShouldNotifyPRComment(t *testing.T) {
 	assert.False(t, shouldNotifyPRComment("delete"))
 }
 
+func TestAppendUniqueActor(t *testing.T) {
+	t.Parallel()
+
+	alice := events.Actor{Name: "Alice", Login: "alice", TgTag: "alice"}
+	aliceAgain := events.Actor{Name: "alice git", Login: "alice", TgTag: "alice"}
+	bob := events.Actor{Name: "bob", Login: "bob"}
+
+	got, added := appendUniqueActor(nil, alice)
+	assert.True(t, added)
+	assert.Equal(t, []events.Actor{alice}, got)
+
+	got, added = appendUniqueActor(got, aliceAgain)
+	assert.False(t, added)
+
+	got, added = appendUniqueActor(got, bob)
+	assert.True(t, added)
+	assert.Equal(t, []events.Actor{alice, bob}, got)
+}
+
 func TestTelegramThreadPlan(t *testing.T) {
 	t.Parallel()
 
@@ -45,4 +64,20 @@ func TestTelegramThreadPlan(t *testing.T) {
 	replyTo, bind = telegramThreadPlan(events.BranchPush, 99)
 	assert.Equal(t, 0, replyTo)
 	assert.False(t, bind)
+}
+
+func TestAppendUniqueID(t *testing.T) {
+	t.Parallel()
+
+	got := appendUniqueID(nil, 0)
+	assert.Nil(t, got)
+
+	got = appendUniqueID(got, 10)
+	assert.Equal(t, []int{10}, got)
+
+	got = appendUniqueID(got, 10)
+	assert.Equal(t, []int{10}, got)
+
+	got = appendUniqueID(got, 11)
+	assert.Equal(t, []int{10, 11}, got)
 }

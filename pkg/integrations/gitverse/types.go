@@ -220,8 +220,12 @@ func titlesMatch(got, want string) bool {
 	return strings.Contains(g, w) || strings.Contains(w, g)
 }
 
-func issueKeyIn(title string) string {
+func IssueKeyFromTitle(title string) string {
 	return issueKeyRe.FindString(title)
+}
+
+func issueKeyIn(title string) string {
+	return IssueKeyFromTitle(title)
 }
 
 func decodePullRequests(body []byte) ([]PullRequest, error) {

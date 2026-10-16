@@ -99,3 +99,81 @@ func (c *Client) SendMessage(ctx context.Context, text string, replyTo int) (int
 	}
 	return msg.ID, nil
 }
+
+func (c *Client) EditMessage(ctx context.Context, messageID int, text string) error {
+	if messageID <= 0 {
+		return fmt.Errorf("telegram message id is required")
+	}
+	disabled := true
+	_, err := c.bot.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:    c.chatID,
+		MessageID: messageID,
+		Text:      text,
+		ParseMode: c.parseMode,
+		LinkPreviewOptions: &models.LinkPreviewOptions{
+			IsDisabled: &disabled,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to edit telegram message %d in %s: %w", messageID, c.chatID, err)
+	}
+	return nil
+}
+
+func (c *Client) DeleteMessages(ctx context.Context, messageIDs []int) error {
+	ids := uniquePositiveIDs(messageIDs)
+	if len(ids) == 0 {
+		return nil
+	}
+	if len(ids) == 1 {
+		_, err := c.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+			ChatID:    c.chatID,
+			MessageID: ids[0],
+		})
+		if err != nil {
+			return fmt.Errorf("failed to delete telegram message %d in %s: %w", ids[0], c.chatID, err)
+		}
+		return nil
+	}
+	_, err := c.bot.DeleteMessages(ctx, &bot.DeleteMessagesParams{
+		ChatID:     c.chatID,
+		MessageIDs: ids,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete telegram messages in %s: %w", c.chatID, err)
+	}
+	return nil
+}
+
+func uniquePositiveIDs(ids []int) []int {
+	seen := map[int]struct{}{}
+	out := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func IsNotModified(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "message is not modified")
+}
+
+func IsMessageGone(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "message to edit not found") ||
+		strings.Contains(msg, "message to delete not found") ||
+		strings.Contains(msg, "message can't be edited")
+}

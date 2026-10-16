@@ -25,6 +25,27 @@ func TestTelegramMention(t *testing.T) {
 	require.Equal(t, "", TelegramMention(events.Actor{}))
 }
 
+func TestTelegramNotifyAuthor(t *testing.T) {
+	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
+
+	require.Equal(t, "@bob", TelegramNotifyAuthor(
+		events.Actor{TgTag: "alice"},
+		events.Actor{Name: "bob", TgTag: "bob"},
+	))
+	require.Empty(t, TelegramNotifyAuthor(
+		events.Actor{TgTag: "bob", Login: "bob"},
+		events.Actor{TgTag: "bob", Login: "bob"},
+	))
+	require.Empty(t, TelegramNotifyAuthor(
+		events.Actor{TgTag: "alice"},
+		events.Actor{Name: "bob", URL: "https://git.example/bob"},
+	))
+	require.Equal(t, "@bob", TelegramNotifyPRAuthor(
+		[]events.CommentInfo{{Author: events.Actor{TgTag: "alice"}}},
+		events.Actor{TgTag: "bob"},
+	))
+}
+
 func TestTelegramName(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 
@@ -174,25 +195,32 @@ func TestRenderTelegramPRComment(t *testing.T) {
 			URL:    "https://git.example/org/app/pulls/412",
 			Author: events.Actor{Name: "bob", Login: "bob", URL: "https://git.example/bob"},
 		},
-		Comment: events.CommentInfo{
-			Body:   "Доработать поле')`",
-			Author: events.Actor{Name: "alice", Login: "alice", TgTag: "alice"},
+		Comments: []events.CommentInfo{
+			{Author: events.Actor{Name: "alice", Login: "alice", TgTag: "alice"}},
+			{Author: events.Actor{TgTag: "carol"}},
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `[\#412](https://git.example/org/app/pulls/412) · comment by [alice](https://t.me/alice)
+	require.Equal(t, `[\#412](https://git.example/org/app/pulls/412)
 APP\-1183 \[FE\] Доработать форму
+↳ [alice](https://t.me/alice)
+↳ [carol](https://t.me/carol)
 `, body)
 
 	reply, err := engine.Render("telegram/pr_comment", Data{
 		ThreadReply: true,
-		Comment: events.CommentInfo{
-			Author: events.Actor{Name: "alice", Login: "alice", TgTag: "alice"},
+		PullRequest: events.PullRequestInfo{
+			Number: 412,
+			URL:    "https://git.example/org/app/pulls/412",
+			Author: events.Actor{Name: "bob", TgTag: "bob"},
+		},
+		Comments: []events.CommentInfo{
+			{Author: events.Actor{Name: "alice", Login: "alice", TgTag: "alice"}},
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `comment by [alice](https://t.me/alice)
-`, reply)
+	require.Equal(t, `↳ [alice](https://t.me/alice)
+@bob`, reply)
 }
 
 func TestRenderTelegramPROpened(t *testing.T) {

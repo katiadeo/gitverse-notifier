@@ -35,6 +35,16 @@ func TestMemoryPullRequestCache_RebuildsStubFromRememberedNumber(t *testing.T) {
 	require.Equal(t, "https://git.example/org/app/pulls/412", got.HTMLURL)
 }
 
+func TestMemoryPullRequestCache_FindsNumberByIssueKey(t *testing.T) {
+	config.GlobalConfig = &config.Config{CacheTTL: 60, GitverseBaseURL: "https://git.example"}
+	c := NewMemoryPullRequestCache()
+	c.Set("org/app", "APP-1197 [FE] original title", 88, gitverse.NewStubPullRequest("org/app", "APP-1197 [FE] original title", 88))
+
+	got, ok := c.GetByTitle("org/app", "APP-1197 [FE] slightly different", 0)
+	require.True(t, ok)
+	require.Equal(t, 88, got.Number)
+}
+
 func TestMemoryPullRequestCache_PersistsNumbersAcrossRestart(t *testing.T) {
 	root := t.TempDir()
 	config.GlobalConfig = &config.Config{

@@ -136,6 +136,43 @@ func TelegramMention(actor events.Actor) string {
 	return TelegramName(actor)
 }
 
+func TelegramNotifyAuthor(commenter, author events.Actor) string {
+	if strings.TrimPrefix(author.TgTag, "@") == "" {
+		return ""
+	}
+	if sameTelegramActor(commenter, author) {
+		return ""
+	}
+	return TelegramMention(author)
+}
+
+func TelegramNotifyPRAuthor(comments []events.CommentInfo, author events.Actor) string {
+	if strings.TrimPrefix(author.TgTag, "@") == "" {
+		return ""
+	}
+	for _, comment := range comments {
+		if !sameTelegramActor(comment.Author, author) {
+			return TelegramMention(author)
+		}
+	}
+	return ""
+}
+
+func sameTelegramActor(a, b events.Actor) bool {
+	aTag := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(a.TgTag), "@"))
+	bTag := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(b.TgTag), "@"))
+	if aTag != "" && aTag == bTag {
+		return true
+	}
+	if a.Login != "" && b.Login != "" && strings.EqualFold(a.Login, b.Login) {
+		return true
+	}
+	if a.Name != "" && b.Name != "" && strings.EqualFold(a.Name, b.Name) {
+		return true
+	}
+	return false
+}
+
 func TelegramName(actor events.Actor) string {
 	if tag := strings.TrimPrefix(actor.TgTag, "@"); tag != "" {
 		return TelegramLink(tag, "https://t.me/"+tag)
