@@ -41,7 +41,7 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 		name = defaultTelegramTemplate
 	}
 
-	if event.Type == events.PullRequestComment && !isCreatedComment(event.Action) {
+	if event.Type == events.PullRequestComment && !shouldNotifyPRComment(event.Action) {
 		logger.Info(ctx, "skipping telegram comment action",
 			"action", a.Name(),
 			"event", event.Type,
@@ -66,7 +66,12 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 	}
 	body = clipTelegramText(body)
 
-	logger.Debug(ctx, "rendered telegram message body", "action", a.Name(), "body", body)
+	logger.Debug(ctx, "rendered telegram message body",
+		"action", a.Name(),
+		"body", body,
+		"pr-number", event.PullRequest.Number,
+		"pr-url", event.PullRequest.URL,
+	)
 
 	if err := a.client.SendMessage(ctx, body); err != nil {
 		return err
@@ -81,9 +86,9 @@ func (a *TelegramNotify) Run(ctx context.Context, event *events.Event, rule *set
 	return nil
 }
 
-func isCreatedComment(action string) bool {
+func shouldNotifyPRComment(action string) bool {
 	switch strings.ToLower(strings.TrimSpace(action)) {
-	case "", "created", "create":
+	case "", "created", "create", "edited", "edit":
 		return true
 	default:
 		return false

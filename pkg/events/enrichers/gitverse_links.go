@@ -51,8 +51,10 @@ func (e *GitverseLinks) Enrich(_ context.Context, event *events.Event) error {
 		event.PullRequest.BaseURL = repoBranchURL(baseURL, repoPath, event.PullRequest.BaseRef)
 	}
 
-	if event.PullRequest.Number > 0 && event.PullRequest.URL == "" {
-		event.PullRequest.URL = fmt.Sprintf("%s/%s/pulls/%d", baseURL, repoPath, event.PullRequest.Number)
+	if event.PullRequest.Number > 0 && (event.PullRequest.URL == "" || strings.Contains(event.PullRequest.URL, "/api/")) {
+		if baseURL != "" {
+			event.PullRequest.URL = fmt.Sprintf("%s/%s/pulls/%d", strings.TrimRight(baseURL, "/"), repoPath, event.PullRequest.Number)
+		}
 	}
 
 	return nil

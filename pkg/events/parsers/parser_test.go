@@ -239,6 +239,29 @@ func TestParseEvent_IssueComment_NumberFromCommentHTMLURL(t *testing.T) {
 	assert.Equal(t, "avikharev", event.Comment.Mentions[0].Login)
 }
 
+func TestParseEvent_IssueComment_NumberFromAPIIssueURL(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "created",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "bks-frontend/fcs-frontend"},
+		"sender":     map[string]any{"login": "tmukhortova"},
+		"issue": map[string]any{
+			"title": "STKPVT-1184 [FE] Доработка формы",
+			"url":   "https://git.eaisto.at-consulting.ru/api/v1/repos/bks-frontend/fcs-frontend/issues/390",
+			"user":  map[string]any{"login": "Groad9"},
+		},
+		"comment": map[string]any{
+			"body": "test",
+			"user": map[string]any{"login": "tmukhortova"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 390, event.PullRequest.Number)
+	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/390", event.PullRequest.URL)
+}
+
 func TestParseEvent_IssueComment_NumberFromPullRequestObject(t *testing.T) {
 	body := mustJSON(t, map[string]any{
 		"repository":  map[string]any{"fullName": "org/app"},

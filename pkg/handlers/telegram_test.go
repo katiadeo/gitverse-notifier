@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsCreatedComment(t *testing.T) {
+func TestShouldNotifyPRComment(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, isCreatedComment(""))
-	assert.True(t, isCreatedComment("created"))
-	assert.True(t, isCreatedComment("Created"))
-	assert.False(t, isCreatedComment("deleted"))
-	assert.False(t, isCreatedComment("edited"))
+	assert.True(t, shouldNotifyPRComment(""))
+	assert.True(t, shouldNotifyPRComment("created"))
+	assert.True(t, shouldNotifyPRComment("Created"))
+	assert.True(t, shouldNotifyPRComment("edited"))
+	assert.False(t, shouldNotifyPRComment("deleted"))
 }

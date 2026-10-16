@@ -10,9 +10,11 @@ import (
 )
 
 var (
-	pullsURLRe    = regexp.MustCompile(`https?://[^\s"'<>]+/pulls/\d+`)
-	pullsNumberRe = regexp.MustCompile(`/pulls/(\d+)`)
-	mentionRe     = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_-]+)`)
+	pullsURLRe     = regexp.MustCompile(`https?://[^\s"'<>]+/(?:pulls?|issues)/\d+`)
+	pullsNumberRe  = regexp.MustCompile(`/(?:pulls?|issues)/(\d+)`)
+	apiRepoURLRe   = regexp.MustCompile(`^(https?://[^/]+)/api/v1/repos/([^/]+/[^/]+)/(?:issues|pulls)/(\d+)`)
+	issuePathNumRe = regexp.MustCompile(`/issues/(\d+)$`)
+	mentionRe      = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_-]+)`)
 )
 
 type issueCommentPayload struct {
@@ -27,6 +29,7 @@ type issueCommentPayload struct {
 		State       string                 `json:"state"`
 		HTMLURL     string                 `json:"html_url"`
 		HTMLUrl     string                 `json:"htmlUrl"`
+		URL         string                 `json:"url"`
 		User        actorPayload           `json:"user"`
 		PullRequest pullRequestBodyPayload `json:"pull_request"`
 	} `json:"issue"`
@@ -36,7 +39,9 @@ type issueCommentPayload struct {
 		Body           string       `json:"body"`
 		User           actorPayload `json:"user"`
 		HTMLURL        string       `json:"html_url"`
+		URL            string       `json:"url"`
 		PullRequestURL string       `json:"pull_request_url"`
+		IssueURL       string       `json:"issue_url"`
 	} `json:"comment"`
 	Sender actorPayload `json:"sender"`
 }
@@ -68,11 +73,14 @@ func fillIssueComment(event *events.Event, body []byte) error {
 	if isPR {
 		url := firstNonEmpty(
 			pr.url(),
-			payload.Issue.HTMLURL,
-			payload.Issue.HTMLUrl,
+			toPullHTMLURL(payload.Issue.HTMLURL),
+			toPullHTMLURL(payload.Issue.HTMLUrl),
+			toPullHTMLURL(payload.Issue.URL),
 			payload.Issue.PullRequest.url(),
-			payload.Comment.PullRequestURL,
-			pullURLFrom(payload.Comment.HTMLURL),
+			toPullHTMLURL(payload.Comment.PullRequestURL),
+			toPullHTMLURL(payload.Comment.HTMLURL),
+			toPullHTMLURL(payload.Comment.URL),
+			toPullHTMLURL(payload.Comment.IssueURL),
 			prURLFromRaw(body),
 		)
 		event.PullRequest = events.PullRequestInfo{
@@ -111,8 +119,32 @@ func prNumberFromRaw(body []byte) int {
 		jsonPathInt(raw, "pull_request", "number"),
 		jsonPathInt(raw, "issue", "pullRequest", "number"),
 		jsonPathInt(raw, "issue", "pull_request", "number"),
-		prNumberFromURL(string(body)),
+		prNumberFromURL(
+			string(body),
+			jsonPathString(raw, "issue", "url"),
+			jsonPathString(raw, "issue", "html_url"),
+			jsonPathString(raw, "comment", "html_url"),
+			jsonPathString(raw, "comment", "pull_request_url"),
+			jsonPathString(raw, "pull_request", "url"),
+			jsonPathString(raw, "pull_request", "html_url"),
+		),
 	)
+}
+
+func toPullHTMLURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if matches := apiRepoURLRe.FindStringSubmatch(raw); len(matches) == 4 {
+		return matches[1] + "/" + matches[2] + "/pulls/" + matches[3]
+	}
+	raw = strings.Split(raw, "#")[0]
+	raw = issuePathNumRe.ReplaceAllString(raw, "/pulls/$1")
+	if pullsNumberRe.MatchString(raw) {
+		return raw
+	}
+	return ""
 }
 
 func prURLFromRaw(body []byte) string {
@@ -185,9 +217,27 @@ func jsonPathInt(cur any, path ...string) int {
 	case json.Number:
 		v, _ := n.Int64()
 		return int(v)
+	case string:
+		var parsed int
+		if _, err := fmt.Sscanf(strings.TrimSpace(n), "%d", &parsed); err == nil && parsed > 0 {
+			return parsed
+		}
+		return prNumberFromURL(n)
 	default:
 		return 0
 	}
+}
+
+func jsonPathString(cur any, path ...string) string {
+	for _, key := range path {
+		obj, ok := cur.(map[string]any)
+		if !ok {
+			return ""
+		}
+		cur = obj[key]
+	}
+	s, _ := cur.(string)
+	return s
 }
 
 func firstPositive(values ...int) int {

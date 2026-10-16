@@ -20,6 +20,7 @@ type pullRequestBodyPayload struct {
 	Merged             bool            `json:"merged"`
 	HTMLURL            string          `json:"html_url"`
 	HTMLUrl            string          `json:"htmlUrl"`
+	URL                string          `json:"url"`
 	User               actorPayload    `json:"user"`
 	Head               prBranchPayload `json:"head"`
 	Base               prBranchPayload `json:"base"`
@@ -27,7 +28,7 @@ type pullRequestBodyPayload struct {
 }
 
 func (p pullRequestBodyPayload) url() string {
-	return firstNonEmpty(p.HTMLURL, p.HTMLUrl)
+	return firstNonEmpty(p.HTMLURL, p.HTMLUrl, toPullHTMLURL(p.URL))
 }
 
 type pullRequestPayload struct {
