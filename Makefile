@@ -22,6 +22,7 @@ init_configs:
 	for file in ./*.yml.example; do \
 		cp "$$file" "$$(basename "$$file" .example)"; \
 	done
+	git config core.hooksPath .githooks
 
 rebuild:
 	make clean || true
@@ -39,3 +40,7 @@ clean:
 
 run:
 	./$(BUILDDIR)/$(NAME) -f config.yml
+
+# Залить локальный config.yml в GitHub secret. DEPLOY=1 — сразу выкатить на VPS.
+sync-config:
+	./scripts/sync-config.sh $(if $(DEPLOY),--deploy)

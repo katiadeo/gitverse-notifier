@@ -3,12 +3,17 @@ package gitverse
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"gitverse-notifier/pkg/config"
 
 	"github.com/go-resty/resty/v2"
 )
+
+func repoAPIPath(repository string) string {
+	return strings.Trim(repository, "/")
+}
 
 const versionHeader = "application/vnd.gitverse.object+json;version=1"
 
@@ -43,12 +48,8 @@ func (c *Client) GetPullRequest(ctx context.Context, repository string, number i
 	var pr PullRequest
 	resp, err := c.resty.R().
 		SetContext(ctx).
-		SetPathParams(map[string]string{
-			"repo":   repository,
-			"number": fmt.Sprintf("%d", number),
-		}).
 		SetResult(&pr).
-		Get("/repos/{repo}/pulls/{number}")
+		Get(fmt.Sprintf("/repos/%s/pulls/%d", repoAPIPath(repository), number))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to make gitverse request: %w", err)
@@ -70,12 +71,8 @@ func (c *Client) GetCommit(ctx context.Context, repository, sha string) (*Commit
 	var commit CommitInfo
 	resp, err := c.resty.R().
 		SetContext(ctx).
-		SetPathParams(map[string]string{
-			"repo": repository,
-			"sha":  sha,
-		}).
 		SetResult(&commit).
-		Get("/repos/{repo}/commits/{sha}")
+		Get(fmt.Sprintf("/repos/%s/commits/%s", repoAPIPath(repository), sha))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to make gitverse request: %w", err)
@@ -100,12 +97,8 @@ func (c *Client) CreateIssueComment(ctx context.Context, repository string, issu
 
 	resp, err := c.resty.R().
 		SetContext(ctx).
-		SetPathParams(map[string]string{
-			"repo":   repository,
-			"number": fmt.Sprintf("%d", issueNumber),
-		}).
 		SetBody(createIssueCommentRequest{Body: body}).
-		Post("/repos/{repo}/issues/{number}/comments")
+		Post(fmt.Sprintf("/repos/%s/issues/%d/comments", repoAPIPath(repository), issueNumber))
 
 	if err != nil {
 		return fmt.Errorf("failed to make gitverse request: %w", err)
@@ -117,4 +110,37 @@ func (c *Client) CreateIssueComment(ctx context.Context, repository string, issu
 	}
 
 	return nil
+}
+
+func (c *Client) FindPullRequestByTitle(ctx context.Context, repository, title string) (*PullRequest, error) {
+	title = strings.TrimSpace(title)
+	if repository == "" || title == "" {
+		return nil, nil
+	}
+
+	for _, state := range []string{"open", "all"} {
+		var prs []PullRequest
+		resp, err := c.resty.R().
+			SetContext(ctx).
+			SetQueryParams(map[string]string{
+				"state":    state,
+				"per_page": "100",
+			}).
+			SetResult(&prs).
+			Get("/repos/" + repoAPIPath(repository) + "/pulls")
+		if err != nil {
+			return nil, fmt.Errorf("failed to make gitverse request: %w", err)
+		}
+		if resp.IsError() {
+			return nil, fmt.Errorf("gitverse api returned %d for %s: %s",
+				resp.StatusCode(), resp.Request.URL, string(resp.Body()))
+		}
+		for i := range prs {
+			if strings.TrimSpace(prs[i].Title) == title {
+				return &prs[i], nil
+			}
+		}
+	}
+
+	return nil, nil
 }

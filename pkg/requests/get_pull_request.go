@@ -35,17 +35,25 @@ func (d *RequestsDispatcher) fetchAndCache(ctx context.Context, request GetPullR
 	number := request.Number
 	if number <= 0 {
 		number = d.prs.GetPRNumber(request.Repo, request.Title)
-		if number <= 0 {
-			return nil, nil
-		}
 	}
 
-	pr, err := d.client.GetPullRequest(ctx, request.Repo, number)
+	var (
+		pr  *gitverse.PullRequest
+		err error
+	)
+	if number > 0 {
+		pr, err = d.client.GetPullRequest(ctx, request.Repo, number)
+	} else {
+		pr, err = d.client.FindPullRequestByTitle(ctx, request.Repo, request.Title)
+	}
 	if err != nil {
 		return nil, err
 	}
+	if pr == nil {
+		return nil, nil
+	}
 
-	d.prs.Set(request.Repo, pr.Title, number, pr)
+	d.prs.Set(request.Repo, pr.Title, pr.Number, pr)
 
 	return pr, nil
 }

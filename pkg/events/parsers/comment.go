@@ -12,7 +12,7 @@ import (
 var (
 	pullsURLRe     = regexp.MustCompile(`https?://[^\s"'<>]+/(?:pulls?|issues)/\d+`)
 	pullsNumberRe  = regexp.MustCompile(`/(?:pulls?|issues)/(\d+)`)
-	apiRepoURLRe   = regexp.MustCompile(`^(https?://[^/]+)/api/v1/repos/([^/]+/[^/]+)/(?:issues|pulls)/(\d+)`)
+	apiRepoURLRe   = regexp.MustCompile(`^(https?://[^/]+)(?:/api/v\d+)?/repos/([^/]+/[^/]+)/(?:issues|pulls)/(\d+)`)
 	issuePathNumRe = regexp.MustCompile(`/issues/(\d+)$`)
 	mentionRe      = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])@([A-Za-z][A-Za-z0-9_-]+)`)
 )
@@ -24,6 +24,7 @@ type issueCommentPayload struct {
 	Issue       struct {
 		Number      int                    `json:"number"`
 		Index       int                    `json:"index"`
+		IID         int                    `json:"iid"`
 		Title       string                 `json:"title"`
 		Body        string                 `json:"body"`
 		State       string                 `json:"state"`
@@ -88,9 +89,10 @@ func fillIssueComment(event *events.Event, body []byte) error {
 				pr.Number,
 				payload.Issue.Number,
 				payload.Issue.Index,
+				payload.Issue.IID,
 				payload.Number,
 				prNumberFromRaw(body),
-				prNumberFromURL(url, payload.Comment.HTMLURL),
+				prNumberFromURL(url, payload.Comment.HTMLURL, payload.Comment.IssueURL, payload.Comment.URL),
 			),
 			Title:   firstNonEmpty(pr.Title, payload.Issue.Title),
 			Body:    firstNonEmpty(pr.Body, payload.Issue.Body),
@@ -115,6 +117,7 @@ func prNumberFromRaw(body []byte) int {
 		jsonPathInt(raw, "number"),
 		jsonPathInt(raw, "issue", "number"),
 		jsonPathInt(raw, "issue", "index"),
+		jsonPathInt(raw, "issue", "iid"),
 		jsonPathInt(raw, "pullRequest", "number"),
 		jsonPathInt(raw, "pull_request", "number"),
 		jsonPathInt(raw, "issue", "pullRequest", "number"),
@@ -124,6 +127,8 @@ func prNumberFromRaw(body []byte) int {
 			jsonPathString(raw, "issue", "url"),
 			jsonPathString(raw, "issue", "html_url"),
 			jsonPathString(raw, "comment", "html_url"),
+			jsonPathString(raw, "comment", "issue_url"),
+			jsonPathString(raw, "comment", "url"),
 			jsonPathString(raw, "comment", "pull_request_url"),
 			jsonPathString(raw, "pull_request", "url"),
 			jsonPathString(raw, "pull_request", "html_url"),

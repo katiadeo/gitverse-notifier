@@ -1,0 +1,72 @@
+name: build and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.27"
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: go test ./... -race -count=1 -timeout 5m -coverprofile=coverage.out -covermode=atomic
+
+      - name: Show coverage
+        run: go tool cover -func=coverage.out
+
+  deploy:
+    name: Deploy to VPS
+    needs: test
+    if: >-
+      vars.ENABLE_VPS_DEPLOY == 'true' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and rebuild on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          NOTIFIER_CONFIG: ${{ secrets.NOTIFIER_CONFIG }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: NOTIFIER_CONFIG
+          script_stop: true
+          script: |
+            set -e
+            cd /opt/gitverse-notifier
+            git fetch origin
+            git checkout main
+            git reset --hard origin/main
+            if [ -n "${NOTIFIER_CONFIG:-}" ]; then
+              umask 077
+              printf '%s\n' "$NOTIFIER_CONFIG" > config.yml
+              chmod 600 config.yml
+            else
+              echo "NOTIFIER_CONFIG secret is empty; keeping existing config.yml"
+            fi
+            docker compose up -d --build --force-recreate
+            for i in $(seq 1 20); do
+              if curl -fsS http://127.0.0.1:9001/health; then
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "health check failed"
+            docker compose logs --tail=80
+            exit 1

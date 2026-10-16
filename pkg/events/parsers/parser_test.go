@@ -152,12 +152,12 @@ func TestParseEvent_IssueComment_GitverseSnakeCasePayload(t *testing.T) {
 		"repository": map[string]any{
 			"full_name": "bks-frontend/fcs-frontend",
 		},
-		"sender": map[string]any{"login": "tmukhortova"},
+		"sender": map[string]any{"login": "alice"},
 		"issue": map[string]any{
 			"number":   237,
 			"title":    "STKPVT-738 Доработан nx генератор",
 			"html_url": "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/237",
-			"user":     map[string]any{"login": "tmukhortova"},
+			"user":     map[string]any{"login": "alice"},
 		},
 		"pull_request": map[string]any{
 			"number":   237,
@@ -168,7 +168,7 @@ func TestParseEvent_IssueComment_GitverseSnakeCasePayload(t *testing.T) {
 		"comment": map[string]any{
 			"body":             "super final check",
 			"pull_request_url": "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/237",
-			"user":             map[string]any{"login": "tmukhortova"},
+			"user":             map[string]any{"login": "alice"},
 		},
 	})
 
@@ -176,7 +176,7 @@ func TestParseEvent_IssueComment_GitverseSnakeCasePayload(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 237, event.PullRequest.Number)
 	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/237", event.PullRequest.URL)
-	assert.Equal(t, "tmukhortova", event.Comment.Author.Name)
+	assert.Equal(t, "alice", event.Comment.Author.Name)
 	assert.Equal(t, "STKPVT-738-nx-generator", event.PullRequest.HeadRef)
 	assert.Equal(t, "develop", event.PullRequest.BaseRef)
 	assert.Equal(t, events.PullRequestComment, event.Type)
@@ -190,14 +190,14 @@ func TestParseEvent_PullRequestOpened_GitverseSnakeCase(t *testing.T) {
 			"full_name": "bks-frontend/fcs-frontend",
 		},
 		"sender": map[string]any{
-			"login":    "tmukhortova",
-			"html_url": "https://git.eaisto.at-consulting.ru/tmukhortova",
+			"login":    "alice",
+			"html_url": "https://git.eaisto.at-consulting.ru/alice",
 		},
 		"pull_request": map[string]any{
 			"number":   237,
 			"title":    "STKPVT-738 Доработан nx генератор",
 			"html_url": "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/237",
-			"user":     map[string]any{"login": "tmukhortova"},
+			"user":     map[string]any{"login": "alice"},
 			"head":     map[string]any{"ref": "STKPVT-738-nx-generator"},
 			"base":     map[string]any{"ref": "develop"},
 		},
@@ -208,8 +208,8 @@ func TestParseEvent_PullRequestOpened_GitverseSnakeCase(t *testing.T) {
 	assert.Equal(t, events.PullRequestOpened, event.Type)
 	assert.Equal(t, 237, event.PullRequest.Number)
 	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/237", event.PullRequest.URL)
-	assert.Equal(t, "tmukhortova", event.Sender.Name)
-	assert.Equal(t, "https://git.eaisto.at-consulting.ru/tmukhortova", event.Sender.URL)
+	assert.Equal(t, "alice", event.Sender.Name)
+	assert.Equal(t, "https://git.eaisto.at-consulting.ru/alice", event.Sender.URL)
 	assert.Equal(t, "STKPVT-738-nx-generator", event.PullRequest.HeadRef)
 }
 
@@ -218,15 +218,15 @@ func TestParseEvent_IssueComment_NumberFromCommentHTMLURL(t *testing.T) {
 		"action":     "created",
 		"is_pull":    true,
 		"repository": map[string]any{"full_name": "bks-frontend/fcs-frontend"},
-		"sender":     map[string]any{"login": "tmukhortova"},
+		"sender":     map[string]any{"login": "alice"},
 		"issue": map[string]any{
 			"title": "STKPVT-1183 [FE] Доработать форму",
-			"user":  map[string]any{"login": "avikharev", "html_url": "https://git.eaisto.at-consulting.ru/avikharev"},
+			"user":  map[string]any{"login": "bob", "html_url": "https://git.eaisto.at-consulting.ru/bob"},
 		},
 		"comment": map[string]any{
-			"body":     "Тогда `z.array(z.string())` @avikharev",
+			"body":     "Тогда `z.array(z.string())` @bob",
 			"html_url": "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412#issuecomment-1",
-			"user":     map[string]any{"login": "tmukhortova"},
+			"user":     map[string]any{"login": "alice"},
 		},
 	})
 
@@ -234,9 +234,9 @@ func TestParseEvent_IssueComment_NumberFromCommentHTMLURL(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 412, event.PullRequest.Number)
 	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412", event.PullRequest.URL)
-	assert.Equal(t, "avikharev", event.PullRequest.Author.Login)
+	assert.Equal(t, "bob", event.PullRequest.Author.Login)
 	require.Len(t, event.Comment.Mentions, 1)
-	assert.Equal(t, "avikharev", event.Comment.Mentions[0].Login)
+	assert.Equal(t, "bob", event.Comment.Mentions[0].Login)
 }
 
 func TestParseEvent_IssueComment_NumberFromAPIIssueURL(t *testing.T) {
@@ -244,15 +244,15 @@ func TestParseEvent_IssueComment_NumberFromAPIIssueURL(t *testing.T) {
 		"action":     "created",
 		"is_pull":    true,
 		"repository": map[string]any{"full_name": "bks-frontend/fcs-frontend"},
-		"sender":     map[string]any{"login": "tmukhortova"},
+		"sender":     map[string]any{"login": "alice"},
 		"issue": map[string]any{
 			"title": "STKPVT-1184 [FE] Доработка формы",
 			"url":   "https://git.eaisto.at-consulting.ru/api/v1/repos/bks-frontend/fcs-frontend/issues/390",
-			"user":  map[string]any{"login": "Groad9"},
+			"user":  map[string]any{"login": "bob"},
 		},
 		"comment": map[string]any{
 			"body": "test",
-			"user": map[string]any{"login": "tmukhortova"},
+			"user": map[string]any{"login": "alice"},
 		},
 	})
 
@@ -260,6 +260,30 @@ func TestParseEvent_IssueComment_NumberFromAPIIssueURL(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 390, event.PullRequest.Number)
 	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/390", event.PullRequest.URL)
+}
+
+func TestParseEvent_IssueComment_NumberFromGitAPIIssueURL(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "edited",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "bks-frontend/fcs-frontend"},
+		"sender":     map[string]any{"login": "alice"},
+		"issue": map[string]any{
+			"title": "STKPVT-1184 [FE] Доработка формы добавления ОК в ДТК в части вызова реста",
+			"user":  map[string]any{"login": "bob"},
+		},
+		"comment": map[string]any{
+			"body":      "test test_code test_update_comment",
+			"issue_url": "https://git-api.eaisto.at-consulting.ru/repos/bks-frontend/fcs-frontend/issues/390",
+			"user":      map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 390, event.PullRequest.Number)
+	assert.Equal(t, "https://git-api.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/390", event.PullRequest.URL)
+	assert.Equal(t, "edited", event.Action)
 }
 
 func TestParseEvent_IssueComment_NumberFromPullRequestObject(t *testing.T) {
@@ -395,19 +419,19 @@ func TestParseEvent_ReviewRequested_GitverseSnakeCase(t *testing.T) {
 		"repository": map[string]any{
 			"full_name": "bks-frontend/fcs-frontend",
 		},
-		"sender": map[string]any{"login": "tmukhortova"},
+		"sender": map[string]any{"login": "alice"},
 		"requested_reviewer": map[string]any{
 			"id":    38,
-			"login": "tmukhortova",
+			"login": "alice",
 		},
 		"pull_request": map[string]any{
 			"number":   281,
 			"title":    "STKPVT-281: Гайд по деплою",
 			"html_url": "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281",
-			"user":     map[string]any{"login": "aviktorov"},
+			"user":     map[string]any{"login": "carol"},
 			"requested_reviewers": []any{
-				map[string]any{"login": "kvolkov"},
-				map[string]any{"login": "tmukhortova"},
+				map[string]any{"login": "dave"},
+				map[string]any{"login": "alice"},
 			},
 		},
 	})
@@ -418,7 +442,7 @@ func TestParseEvent_ReviewRequested_GitverseSnakeCase(t *testing.T) {
 	assert.Equal(t, 281, event.PullRequest.Number)
 	assert.Equal(t, "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281", event.PullRequest.URL)
 	require.Len(t, event.PullRequest.Reviewers, 1)
-	assert.Equal(t, "tmukhortova", event.PullRequest.Reviewers[0].Name)
+	assert.Equal(t, "alice", event.PullRequest.Reviewers[0].Name)
 }
 
 func TestParseEvent_IssueCommentDeletedKeepsAction(t *testing.T) {
@@ -426,14 +450,14 @@ func TestParseEvent_IssueCommentDeletedKeepsAction(t *testing.T) {
 		"action":     "deleted",
 		"is_pull":    true,
 		"repository": map[string]any{"full_name": "org/app"},
-		"sender":     map[string]any{"login": "tmukhortova"},
+		"sender":     map[string]any{"login": "alice"},
 		"issue": map[string]any{
 			"number": 237,
 			"title":  "PR title",
 		},
 		"comment": map[string]any{
 			"body": "bla bla bla blaaa",
-			"user": map[string]any{"login": "tmukhortova"},
+			"user": map[string]any{"login": "alice"},
 		},
 	})
 

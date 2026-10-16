@@ -24,8 +24,39 @@ docker compose up -d
 
 ## Конфигурация
 
-Конифиги можно укзать в config.yml или через переменные окружения.
-Базовые конфиги:
+Два разных файла, их нельзя путать:
+
+| Файл | Что внутри | Как попадает на VPS |
+|---|---|---|
+| `configs/default.yml` | Теги Telegram, проекты Jira, какие события слать | Обычный `git push` |
+| `config.yml` | Токены, URL, пароль webhook | **Не в git.** Едет через GitHub secret `NOTIFIER_CONFIG` |
+
+Хуки после клонирования: `make init_configs` (включает `core.hooksPath .githooks`).
+
+### Как выкатить изменения
+
+Одного коммита мало — нужен **`git push` в `main`**.
+
+1. Коммитите код и пушите в `main`.
+2. На вашей машине, **до** отправки в GitHub, хук смотрит, менялся ли `config.yml` (сравнивается хеш в `.git/`, сам файл в коммит не попадает). Если да — заливает его в secret `NOTIFIER_CONFIG`. Скрипт на VPS не запускается.
+3. В GitHub Actions один workflow **build and deploy**: сначала **Test**, затем **Deploy to VPS**. На pull request будет только Test.
+4. Деплой на сервере берёт `config.yml` из секрета, перезаписывает файл и пересобирает контейнер.
+
+Публикация Docker-образа в GHCR — отдельный ручной workflow, не каждый пуш.
+
+### Только секреты, без пуша кода
+
+```bash
+make sync-config DEPLOY=1
+```
+
+Только обновить GitHub secret, без выката на VPS:
+
+```bash
+make sync-config
+```
+
+Ключи можно задать в `config.yml` или переменными окружения:
 
 | Ключ | Описание | Значение по умолчанию |
 |---|---|---|
@@ -51,9 +82,8 @@ docker compose up -d
 | `TELEGRAM_THREAD_ID` | ID треда в чате | — |
 | `TELEGRAM_PROXY_URL` | HTTP прокси для Telegram (опционально) | — |
 | `TELEGRAM_PARSE_MODE` | Режим парсинга сообщения `Markdown` / `MarkdownV2` / `HTML` | `MarkdownV2` |
-| `GITVERSE_BASE_URL` | Ссылка на гитверс для использования в уведомлениях | — |
 | `GITVERSE_API_URL` | Адрес публичного API gitverse | — |
-| `GITVERSE_API_TOKEN` | Токен для публичного API gitverse | — |
+| `GITVERSE_TOKEN` | Токен для публичного API gitverse | — |
 | `CACHE_TTL` | Время кеширования информации о PR (в минутах) | `60` |
 | `EVENT_QUEUE_SIZE` | Размер очереди событий | `256` |
 | `EVENT_WORKER_COUNT` | Кол-во воркеров (горутин), разбирающих очередь событий | `8` |

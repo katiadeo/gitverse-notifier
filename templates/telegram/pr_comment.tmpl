@@ -3,8 +3,5 @@
 
 PR author: {{tgMention .PullRequest.Author}}
 Comment: {{tgMention .Comment.Author}}
-{{- with tgCommentRecipients .PullRequest .Comment}}
-To: {{.}}
-{{- end}}
 
 {{tgMD .Comment.Body}}

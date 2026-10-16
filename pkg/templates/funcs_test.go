@@ -39,10 +39,10 @@ func TestTelegramName(t *testing.T) {
 func TestTelegramMentionOther(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 
-	author := events.Actor{ID: 1, Name: "aviktorov", TgTag: "aviktorov"}
-	require.Equal(t, "@aviktorov", TelegramMentionOther(author, events.Actor{Name: "nsmirnova"}))
-	require.Equal(t, "", TelegramMentionOther(author, events.Actor{ID: 1, Name: "aviktorov"}))
-	require.Equal(t, "", TelegramMentionOther(author, events.Actor{Name: "Aviktorov"}))
+	author := events.Actor{ID: 1, Name: "alice", TgTag: "alice"}
+	require.Equal(t, "@alice", TelegramMentionOther(author, events.Actor{Name: "bob"}))
+	require.Equal(t, "", TelegramMentionOther(author, events.Actor{ID: 1, Name: "alice"}))
+	require.Equal(t, "", TelegramMentionOther(author, events.Actor{Name: "Alice"}))
 }
 
 func TestTelegramMentions(t *testing.T) {
@@ -112,14 +112,14 @@ func TestRenderTelegramReviewRequested(t *testing.T) {
 			Title:  "STKPVT-281: Гайд по деплою",
 			URL:    "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281",
 			Reviewers: []events.Actor{
-				{Name: "tmukhortova", TgTag: "katiadeo"},
+				{Name: "alice", TgTag: "alice"},
 			},
 		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, `[\#281](https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/281) · review requested
 STKPVT\-281: Гайд по деплою
-@katiadeo
+@alice
 `, body)
 }
 
@@ -137,13 +137,13 @@ func TestTelegramCommentRecipients(t *testing.T) {
 	config.GlobalConfig = &config.Config{TelegramParseMode: "MarkdownV2"}
 
 	got := TelegramCommentRecipients(
-		events.PullRequestInfo{Author: events.Actor{Login: "avikharev", Name: "avikharev", URL: "https://git.example/avikharev"}},
+		events.PullRequestInfo{Author: events.Actor{Login: "bob", Name: "bob", URL: "https://git.example/bob"}},
 		events.CommentInfo{
-			Author:   events.Actor{Login: "tmukhortova", TgTag: "katiadeo"},
-			Mentions: []events.Actor{{Login: "avikharev", Name: "avikharev", URL: "https://git.example/avikharev"}},
+			Author:   events.Actor{Login: "alice", TgTag: "alice"},
+			Mentions: []events.Actor{{Login: "bob", Name: "bob", URL: "https://git.example/bob"}},
 		},
 	)
-	require.Equal(t, "[avikharev](https://git.example/avikharev)", got)
+	require.Equal(t, "[bob](https://git.example/bob)", got)
 }
 
 func TestRenderTelegramPRComment(t *testing.T) {
@@ -161,20 +161,19 @@ func TestRenderTelegramPRComment(t *testing.T) {
 			Number: 412,
 			Title:  "STKPVT-1183 [FE] Доработать форму",
 			URL:    "https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412",
-			Author: events.Actor{Name: "avikharev", Login: "avikharev", URL: "https://git.eaisto.at-consulting.ru/avikharev"},
+			Author: events.Actor{Name: "bob", Login: "bob", URL: "https://git.example/bob"},
 		},
 		Comment: events.CommentInfo{
 			Body:   "Тогда `z.array(z.string()).min(1, 'Обязательное поле')`",
-			Author: events.Actor{Name: "tmukhortova", Login: "tmukhortova", TgTag: "katiadeo"},
+			Author: events.Actor{Name: "alice", Login: "alice", TgTag: "alice"},
 		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, `[\#412](https://git.eaisto.at-consulting.ru/bks-frontend/fcs-frontend/pulls/412)
 STKPVT\-1183 \[FE\] Доработать форму
 
-PR author: [avikharev](https://git.eaisto.at-consulting.ru/avikharev)
-Comment: @katiadeo
-To: [avikharev](https://git.eaisto.at-consulting.ru/avikharev)
+PR author: [bob](https://git.example/bob)
+Comment: @alice
 
 Тогда `+"`z.array(z.string()).min(1, 'Обязательное поле')`"+`
 `, body)
@@ -199,12 +198,12 @@ func TestRenderTelegramPROpened(t *testing.T) {
 			HeadURL: "https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/STKPVT-1237",
 			BaseRef: "develop",
 			BaseURL: "https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/develop",
-			Author:  events.Actor{Name: "aviktorov", URL: "https://gitverse.ru/aviktorov"},
+			Author:  events.Actor{Name: "alice", URL: "https://gitverse.ru/alice"},
 		},
 	})
 	require.NoError(t, err)
 	require.Equal(t, `[\#218](https://gitverse.ru/bks-frontend/fcs-frontend/pulls/218) · opened
 STKPVT\-1237 \[FE\] Доработка
-[aviktorov](https://gitverse.ru/aviktorov) · [STKPVT\-1237](https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/STKPVT-1237) → [develop](https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/develop)
+[alice](https://gitverse.ru/alice) · [STKPVT\-1237](https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/STKPVT-1237) → [develop](https://gitverse.ru/bks-frontend/fcs-frontend/src/branch/develop)
 `, body)
 }
