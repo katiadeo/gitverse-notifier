@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 root="$(git rev-parse --show-toplevel)"
 file="$root/config.yml"
 stamp="$root/.git/gitverse-notifier-config.sha256"
@@ -50,6 +52,15 @@ fi
 if [[ "$if_changed" -eq 1 ]] && ! config_changed; then
   echo "config.yml не менялся с прошлой синхронизации."
   exit 0
+fi
+
+if ! command -v gh >/dev/null 2>&1; then
+  echo "Нет GitHub CLI (gh). Поставьте: brew install gh && gh auth login" >&2
+  if [[ "$if_changed" -eq 1 ]]; then
+    echo "Пуш продолжается без обновления NOTIFIER_CONFIG." >&2
+    exit 0
+  fi
+  exit 1
 fi
 
 if grep -Eq '^GITVERSE_API_URL:[[:space:]]*$' "$file" || grep -Eq '^TELEGRAM_BOT_TOKEN:[[:space:]]*$' "$file"; then

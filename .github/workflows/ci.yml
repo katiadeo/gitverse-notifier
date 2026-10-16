@@ -46,7 +46,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           envs: NOTIFIER_CONFIG
-          script_stop: true
+          # script_stop splits the script into lines and aborts on a false `if` test
+          # (empty NOTIFIER_CONFIG). Keep the script as one shell program.
+          script_stop: false
           script: |
             set -e
             cd /opt/gitverse-notifier
@@ -57,12 +59,14 @@ jobs:
               umask 077
               printf '%s\n' "$NOTIFIER_CONFIG" > config.yml
               chmod 600 config.yml
+              echo "wrote config.yml from NOTIFIER_CONFIG"
             else
               echo "NOTIFIER_CONFIG secret is empty; keeping existing config.yml"
             fi
             docker compose up -d --build --force-recreate
             for i in $(seq 1 20); do
               if curl -fsS http://127.0.0.1:9001/health; then
+                echo "health ok"
                 exit 0
               fi
               sleep 2
