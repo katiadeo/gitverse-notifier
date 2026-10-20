@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# If local gitignored config.yml changed, upload it to GitHub before push.
+# The file itself is never committed; we only compare a hash stored in .git/.
+set -euo pipefail
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+
+if [[ ! -x "$root/scripts/sync-config.sh" ]] || [[ ! -f "$root/config.yml" ]]; then
+  exit 0
+fi
+
+pushing_main=0
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [[ "${remote_ref:-}" == "refs/heads/main" ]]; then
+    pushing_main=1
+  fi
+done
+
+args=(--if-changed)
+if [[ "$pushing_main" -eq 0 ]]; then
+  # Push will not trigger deploy.yml; dispatch it so VPS still gets the new config.
+  args+=(--deploy)
+fi
+
+"$root/scripts/sync-config.sh" "${args[@]}"

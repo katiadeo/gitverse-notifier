@@ -1,24 +1,26 @@
 FROM golang:1.27.1-trixie AS stage-build
 
 ARG TARGETARCH
-ARG VERSION
-ARG COMMIT
 
-ENV VERSION=$VERSION
 ENV GOPATH=/go
 ENV PATH=/go/bin:/usr/local/go/bin:$PATH
 ENV CGO_ENABLED=0
 ENV GO111MODULE=on
 
 WORKDIR /opt/gitverse_notifier
+COPY go.mod go.sum ./
+RUN go mod download -x \
+    && find /go/pkg/mod -type d -name testdata -prune -exec rm -rf {} +
+
 COPY pkg pkg
-COPY go* .
 COPY main.go .
 COPY config.yml.example .
 COPY entrypoint.sh .
 COPY Makefile .
 
-RUN go mod download -x
+ARG VERSION
+ARG COMMIT
+ENV VERSION=$VERSION
 
 RUN make build -s COMMIT=${COMMIT} VERSION=${VERSION} \
     && set -x && ls -al . \
@@ -37,11 +39,11 @@ ENV LANG=en_US.UTF-8
 LABEL org.opencontainers.image.description="Gitverse notifier"
 
 ARG DEPENDENCIES="                    \
-        bash-completion               \
-        jq                            \
-        less                          \
-        redis-tools                   \
-        ca-certificates"
+    bash-completion               \
+    jq                            \
+    less                          \
+    redis-tools                   \
+    ca-certificates"
 
 ARG APT_MIRROR=http://deb.debian.org
 

@@ -38,6 +38,12 @@ func TestParseEvent_PullRequestOpened(t *testing.T) {
 				"id":   8,
 				"name": "bob",
 			},
+			"head": map[string]any{
+				"ref": "APP-1",
+			},
+			"base": map[string]any{
+				"ref": "develop",
+			},
 		},
 	})
 
@@ -47,12 +53,14 @@ func TestParseEvent_PullRequestOpened(t *testing.T) {
 	assert.Equal(t, events.PullRequestOpened, event.Type)
 	assert.Equal(t, "opened", event.Action)
 	assert.Equal(t, "org/app", event.Repository)
-	assert.Equal(t, events.Actor{ID: 7, Name: "alice", Email: "alice@example.com"}, event.Sender)
+	assert.Equal(t, events.Actor{ID: 7, Name: "alice", Login: "alice", Email: "alice@example.com"}, event.Sender)
 	assert.Equal(t, 42, event.PullRequest.Number)
 	assert.Equal(t, "Add feature", event.PullRequest.Title)
 	assert.Equal(t, "Implements APP-1", event.PullRequest.Body)
 	assert.Equal(t, "open", event.PullRequest.State)
-	assert.Equal(t, events.Actor{ID: 8, Name: "bob"}, event.PullRequest.Author)
+	assert.Equal(t, events.Actor{ID: 8, Name: "bob", Login: "bob"}, event.PullRequest.Author)
+	assert.Equal(t, "APP-1", event.PullRequest.HeadRef)
+	assert.Equal(t, "develop", event.PullRequest.BaseRef)
 	assert.Empty(t, event.Comment.Body)
 }
 
@@ -110,11 +118,14 @@ func TestParseEvent_IssueComment(t *testing.T) {
 		"repository": map[string]any{"fullName": "org/app"},
 		"sender":     map[string]any{"name": "carol"},
 		"isPull":     true,
+		"number":     738,
 		"issue": map[string]any{
-			"title": "PR title",
-			"body":  "PR body",
-			"state": "open",
-			"user":  map[string]any{"name": "author"},
+			"number":   738,
+			"title":    "PR title",
+			"body":     "PR body",
+			"state":    "open",
+			"html_url": "https://git.example/org/app/pulls/738",
+			"user":     map[string]any{"name": "author"},
 		},
 		"comment": map[string]any{
 			"body": "Please fix",
@@ -130,6 +141,295 @@ func TestParseEvent_IssueComment(t *testing.T) {
 	assert.Equal(t, "commenter", event.Comment.Author.Name)
 	assert.Equal(t, "PR title", event.PullRequest.Title)
 	assert.Equal(t, "author", event.PullRequest.Author.Name)
+	assert.Equal(t, 738, event.PullRequest.Number)
+	assert.Equal(t, "https://git.example/org/app/pulls/738", event.PullRequest.URL)
+}
+
+func TestParseEvent_IssueComment_GitverseSnakeCasePayload(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":  "created",
+		"is_pull": true,
+		"repository": map[string]any{
+			"full_name": "org/app",
+		},
+		"sender": map[string]any{"login": "alice"},
+		"issue": map[string]any{
+			"number":   237,
+			"title":    "APP-738 generator",
+			"html_url": "https://git.example/org/app/pulls/237",
+			"user":     map[string]any{"login": "alice"},
+		},
+		"pull_request": map[string]any{
+			"number":   237,
+			"html_url": "https://git.example/org/app/pulls/237",
+			"head":     map[string]any{"ref": "APP-738-generator"},
+			"base":     map[string]any{"ref": "develop"},
+		},
+		"comment": map[string]any{
+			"body":             "super final check",
+			"pull_request_url": "https://git.example/org/app/pulls/237",
+			"user":             map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 237, event.PullRequest.Number)
+	assert.Equal(t, "https://git.example/org/app/pulls/237", event.PullRequest.URL)
+	assert.Equal(t, "alice", event.Comment.Author.Name)
+	assert.Equal(t, "APP-738-generator", event.PullRequest.HeadRef)
+	assert.Equal(t, "develop", event.PullRequest.BaseRef)
+	assert.Equal(t, events.PullRequestComment, event.Type)
+}
+
+func TestParseEvent_PullRequestOpened_MergesSnakeNumberIntoCamelTitle(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action": "opened",
+		"repository": map[string]any{
+			"full_name": "org/app",
+		},
+		"sender": map[string]any{
+			"login": "aalavrenov",
+		},
+		"pullRequest": map[string]any{
+			"title": "Draft: STKPVT-913 [FE] types",
+			"user":  map[string]any{"login": "aalavrenov"},
+		},
+		"pull_request": map[string]any{
+			"number":   913,
+			"html_url": "https://git.example/org/app/pull/913",
+			"title":    "Draft: STKPVT-913 [FE] types",
+			"user":     map[string]any{"login": "aalavrenov"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 913, event.PullRequest.Number)
+	assert.Equal(t, "https://git.example/org/app/pull/913", event.PullRequest.URL)
+	assert.Equal(t, "Draft: STKPVT-913 [FE] types", event.PullRequest.Title)
+}
+
+func TestParseEvent_PullRequestOpened_NumberAsJSONFloat(t *testing.T) {
+	body := []byte(`{
+		"action": "opened",
+		"number": 42.0,
+		"repository": {"full_name": "org/app"},
+		"pull_request": {
+			"title": "Add feature",
+			"html_url": "https://git.example/org/app/pull/42"
+		}
+	}`)
+
+	event, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 42, event.PullRequest.Number)
+	assert.Equal(t, "https://git.example/org/app/pull/42", event.PullRequest.URL)
+}
+
+func TestParseEvent_PullRequestOpened_GitverseSnakeCase(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action": "opened",
+		"number": 237,
+		"repository": map[string]any{
+			"full_name": "org/app",
+		},
+		"sender": map[string]any{
+			"login":    "alice",
+			"html_url": "https://git.example/alice",
+		},
+		"pull_request": map[string]any{
+			"number":   237,
+			"title":    "APP-738 generator",
+			"html_url": "https://git.example/org/app/pulls/237",
+			"user":     map[string]any{"login": "alice"},
+			"head":     map[string]any{"ref": "APP-738-generator"},
+			"base":     map[string]any{"ref": "develop"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, events.PullRequestOpened, event.Type)
+	assert.Equal(t, 237, event.PullRequest.Number)
+	assert.Equal(t, "https://git.example/org/app/pulls/237", event.PullRequest.URL)
+	assert.Equal(t, "alice", event.Sender.Name)
+	assert.Equal(t, "https://git.example/alice", event.Sender.URL)
+	assert.Equal(t, "APP-738-generator", event.PullRequest.HeadRef)
+}
+
+func TestParseEvent_IssueComment_NumberFromCommentHTMLURL(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "created",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "org/app"},
+		"sender":     map[string]any{"login": "alice"},
+		"issue": map[string]any{
+			"title": "APP-1183 [FE] Доработать форму",
+			"user":  map[string]any{"login": "bob", "html_url": "https://git.example/bob"},
+		},
+		"comment": map[string]any{
+			"body":     "Тогда `z.array(z.string())` @bob",
+			"html_url": "https://git.example/org/app/pulls/412#issuecomment-1",
+			"user":     map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 412, event.PullRequest.Number)
+	assert.Equal(t, "https://git.example/org/app/pulls/412", event.PullRequest.URL)
+	assert.Equal(t, "https://git.example/org/app/pulls/412#issuecomment-1", event.Comment.URL)
+	assert.Equal(t, 1, event.Comment.ID)
+	assert.Equal(t, "bob", event.PullRequest.Author.Login)
+	require.Len(t, event.Comment.Mentions, 1)
+	assert.Equal(t, "bob", event.Comment.Mentions[0].Login)
+}
+
+func TestParseEvent_IssueComment_BuildsURLFromID(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "created",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "org/app"},
+		"issue": map[string]any{
+			"number":   412,
+			"title":    "APP-1183 form",
+			"html_url": "https://git.example/org/app/pulls/412",
+		},
+		"comment": map[string]any{
+			"id":   77,
+			"body": "please check",
+			"user": map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, "https://git.example/org/app/pulls/412#issuecomment-77", event.Comment.URL)
+}
+
+func TestParseEvent_IssueComment_ReplyToAndThreadID(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "created",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "org/app"},
+		"issue": map[string]any{
+			"number":   412,
+			"title":    "APP-1183 form",
+			"html_url": "https://git.example/org/app/pulls/412",
+		},
+		"comment": map[string]any{
+			"id":        88,
+			"body":      "agree",
+			"user":      map[string]any{"login": "bob"},
+			"reply_to":  77,
+			"thread_id": 77,
+			"html_url":  "https://git.example/org/app/pulls/412#comment-88",
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 88, event.Comment.ID)
+	assert.Equal(t, 77, event.Comment.ReplyTo)
+	assert.Equal(t, 77, event.Comment.ThreadID)
+	assert.Equal(t, "https://git.example/org/app/pulls/412#comment-88", event.Comment.URL)
+}
+
+func TestParseEvent_IssueComment_NumberFromAPIIssueURL(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "created",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "org/app"},
+		"sender":     map[string]any{"login": "alice"},
+		"issue": map[string]any{
+			"title": "APP-1184 [FE] Доработка формы",
+			"url":   "https://git.example/api/v1/repos/org/app/issues/390",
+			"user":  map[string]any{"login": "bob"},
+		},
+		"comment": map[string]any{
+			"body": "test",
+			"user": map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 390, event.PullRequest.Number)
+	assert.Equal(t, "https://git.example/org/app/pulls/390", event.PullRequest.URL)
+}
+
+func TestParseEvent_IssueComment_NumberFromIndexAndHTMLUrl(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "created",
+		"isPull":     true,
+		"repository": map[string]any{"fullName": "org/app"},
+		"sender":     map[string]any{"login": "alice"},
+		"issue": map[string]any{
+			"index":   214,
+			"title":   "APP-1167 form",
+			"htmlUrl": "https://git.example/org/app/pulls/214",
+			"user":    map[string]any{"login": "bob"},
+		},
+		"comment": map[string]any{
+			"body": "note",
+			"user": map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 214, event.PullRequest.Number)
+	assert.Equal(t, "https://git.example/org/app/pulls/214", event.PullRequest.URL)
+}
+
+func TestParseEvent_IssueComment_SparseGitversePayloadHasNoNumber(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action": "created",
+		"issue": map[string]any{
+			"user":  map[string]any{"id": 50, "name": "bob"},
+			"title": "APP-1183 form",
+			"body":  "desc",
+			"state": "open",
+		},
+		"comment": map[string]any{
+			"user": map[string]any{"id": 24, "name": "alice"},
+			"body": "note",
+		},
+		"repository": map[string]any{
+			"id":        45,
+			"name":      "app",
+			"ownerName": "org",
+			"fullName":  "org/app",
+		},
+		"sender": map[string]any{"id": 24, "name": "alice"},
+		"isPull": true,
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, events.PullRequestComment, event.Type)
+	assert.Equal(t, "org/app", event.Repository)
+	assert.Equal(t, "APP-1183 form", event.PullRequest.Title)
+	assert.Equal(t, 0, event.PullRequest.Number)
+	assert.Empty(t, event.PullRequest.URL)
+	assert.Equal(t, "alice", event.Comment.Author.Name)
+	assert.Equal(t, "bob", event.PullRequest.Author.Name)
+}
+
+func TestParseEvent_IssueComment_NumberFromPullRequestObject(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"repository":  map[string]any{"fullName": "org/app"},
+		"sender":      map[string]any{"name": "carol"},
+		"isPull":      true,
+		"pullRequest": map[string]any{"number": 91, "title": "via PR object"},
+		"issue":       map[string]any{"title": "via PR object"},
+		"comment":     map[string]any{"body": "x", "user": map[string]any{"name": "c"}},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, 91, event.PullRequest.Number)
 }
 
 func TestParseEvent_IssueComment_FallsBackToSenderAuthor(t *testing.T) {
@@ -243,6 +543,170 @@ func TestParseEvent_PullRequestAuthorFallsBackToSender(t *testing.T) {
 	assert.Equal(t, "alice", event.PullRequest.Author.Name)
 }
 
+func TestParseEvent_ReviewRequested_GitverseSnakeCase(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action": "review_requested",
+		"number": 281,
+		"repository": map[string]any{
+			"full_name": "org/app",
+		},
+		"sender": map[string]any{"login": "alice"},
+		"requested_reviewer": map[string]any{
+			"id":    38,
+			"login": "alice",
+		},
+		"pull_request": map[string]any{
+			"number":   281,
+			"title":    "APP-281: deploy guide",
+			"html_url": "https://git.example/org/app/pulls/281",
+			"user":     map[string]any{"login": "carol"},
+			"requested_reviewers": []any{
+				map[string]any{"login": "dave"},
+				map[string]any{"login": "alice"},
+			},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "pull_request", "pull_request_review_requested", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, events.PullRequestReviewRequested, event.Type)
+	assert.Equal(t, 281, event.PullRequest.Number)
+	assert.Equal(t, "https://git.example/org/app/pulls/281", event.PullRequest.URL)
+	require.Len(t, event.PullRequest.Reviewers, 2)
+	assert.Equal(t, "dave", event.PullRequest.Reviewers[0].Name)
+	assert.Equal(t, "alice", event.PullRequest.Reviewers[1].Name)
+	assert.True(t, event.PullRequest.ReviewersExact)
+}
+
+func TestParseEvent_ReviewRequested_SingleReviewer(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action": "review_requested",
+		"repository": map[string]any{
+			"full_name": "org/app",
+		},
+		"requested_reviewer": map[string]any{
+			"id":    38,
+			"login": "alice",
+		},
+		"pull_request": map[string]any{
+			"number": 281,
+			"title":  "APP-281: deploy guide",
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, events.PullRequestReviewRequested, event.Type)
+	require.Len(t, event.PullRequest.Reviewers, 1)
+	assert.Equal(t, "alice", event.PullRequest.Reviewers[0].Name)
+	assert.False(t, event.PullRequest.ReviewersExact)
+}
+
+func TestParseEvent_ReviewRequestRemoved(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action": "review_request_removed",
+		"repository": map[string]any{
+			"full_name": "org/app",
+		},
+		"requested_reviewer": map[string]any{
+			"login": "alice",
+		},
+		"pull_request": map[string]any{
+			"number": 281,
+			"title":  "APP-281: deploy guide",
+			"requested_reviewers": []any{
+				map[string]any{"login": "dave"},
+			},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, events.PullRequestReviewRequestRemoved, event.Type)
+	require.Len(t, event.PullRequest.Reviewers, 1)
+	assert.Equal(t, "dave", event.PullRequest.Reviewers[0].Name)
+	assert.True(t, event.PullRequest.ReviewersExact)
+}
+
+func TestParseEvent_OpenedRequestedReviewers(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action": "opened",
+		"repository": map[string]any{
+			"fullName": "org/app",
+		},
+		"pullRequest": map[string]any{
+			"number": 42,
+			"title":  "Add feature",
+			"requestedReviewers": []any{
+				map[string]any{"id": 9, "name": "carol"},
+			},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, events.PullRequestOpened, event.Type)
+	require.Len(t, event.PullRequest.Reviewers, 1)
+	assert.Equal(t, "carol", event.PullRequest.Reviewers[0].Login)
+	assert.True(t, event.PullRequest.ReviewersExact)
+}
+
+func TestParseEvent_IssueCommentDeletedKeepsAction(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "deleted",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "org/app"},
+		"sender":     map[string]any{"login": "alice"},
+		"issue": map[string]any{
+			"number": 237,
+			"title":  "PR title",
+		},
+		"comment": map[string]any{
+			"body": "bla bla bla blaaa",
+			"user": map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, events.PullRequestComment, event.Type)
+	assert.Equal(t, "deleted", event.Action)
+	assert.Equal(t, "bla bla bla blaaa", event.Comment.Body)
+}
+
+func TestParseEvent_IssueCommentKeepsCreatedAtWithoutID(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action":     "edited",
+		"is_pull":    true,
+		"repository": map[string]any{"full_name": "org/app"},
+		"issue":      map[string]any{"number": 237, "title": "PR title"},
+		"comment": map[string]any{
+			"body":       "edited text",
+			"created_at": "2026-10-20T17:03:29Z",
+			"user":       map[string]any{"login": "alice"},
+		},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Zero(t, event.Comment.ID)
+	assert.Equal(t, "2026-10-20T17:03:29Z", event.Comment.CreatedAt)
+}
+
+func TestParseEvent_IssueCommentKeepsPreviousBody(t *testing.T) {
+	body := mustJSON(t, map[string]any{
+		"action": "edited", "is_pull": true,
+		"repository": map[string]any{"full_name": "org/app"},
+		"issue":      map[string]any{"number": 237, "title": "PR title"},
+		"comment":    map[string]any{"body": "new", "user": map[string]any{"login": "alice"}},
+		"changes":    map[string]any{"body": map[string]any{"from": "old"}},
+	})
+
+	event, err := ParseEvent(context.Background(), "issue_comment", "pull_request_comment", "123", body)
+	require.NoError(t, err)
+	assert.Equal(t, "old", event.Comment.PreviousBody)
+}
+
 func TestParseEvent_UsesActionFromBodyForTypeResolution(t *testing.T) {
 	cases := []struct {
 		action string
@@ -252,6 +716,7 @@ func TestParseEvent_UsesActionFromBodyForTypeResolution(t *testing.T) {
 		{action: "edited", want: events.PullRequestEdited},
 		{action: "synchronized", want: events.PullRequestSynchronized},
 		{action: "review_requested", want: events.PullRequestReviewRequested},
+		{action: "review_request_removed", want: events.PullRequestReviewRequestRemoved},
 	}
 
 	for _, tc := range cases {
@@ -290,11 +755,12 @@ func TestParseEvent_Errors(t *testing.T) {
 		assert.Contains(t, err.Error(), "failed to detect event type")
 	})
 
-	t.Run("invalid pull request json after type resolve", func(t *testing.T) {
-		body := []byte(`{"action":"opened","repository":{"fullName":"org/app"},"number":"not-int"}`)
-		_, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to parse pull request json")
+	t.Run("non-numeric pull request number is ignored", func(t *testing.T) {
+		body := []byte(`{"action":"opened","repository":{"fullName":"org/app"},"number":"not-int","pullRequest":{"title":"x"}}`)
+		event, err := ParseEvent(context.Background(), "pull_request", "pull_request", "123", body)
+		require.NoError(t, err)
+		assert.Equal(t, 0, event.PullRequest.Number)
+		assert.Equal(t, "x", event.PullRequest.Title)
 	})
 
 	t.Run("invalid issue comment json", func(t *testing.T) {
@@ -320,7 +786,6 @@ func TestParseEvent_Errors(t *testing.T) {
 }
 
 func TestParseEvent_EmptyBodyFailsOnTypedPayload(t *testing.T) {
-	// fillCommon accepts an empty body, but type-specific fillers still require JSON.
 	_, err := ParseEvent(context.Background(), "push", "push", "123", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse push/ref json")

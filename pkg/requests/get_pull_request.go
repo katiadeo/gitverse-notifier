@@ -35,17 +35,41 @@ func (d *RequestsDispatcher) fetchAndCache(ctx context.Context, request GetPullR
 	number := request.Number
 	if number <= 0 {
 		number = d.prs.GetPRNumber(request.Repo, request.Title)
-		if number <= 0 {
-			return nil, nil
-		}
 	}
 
-	pr, err := d.client.GetPullRequest(ctx, request.Repo, number)
+	var (
+		pr  *gitverse.PullRequest
+		err error
+	)
+	if number > 0 {
+		pr, err = d.client.GetPullRequest(ctx, request.Repo, number)
+	} else {
+		pr, err = d.client.FindPullRequestByTitle(ctx, request.Repo, request.Title)
+	}
 	if err != nil {
+		if number > 0 {
+			logger.Warn(ctx, "gitverse api unavailable, using webhook PR number",
+				"action", "request.get-pull-request-info",
+				"err", err, "repository", request.Repo, "pr-number", number)
+			stub := gitverse.NewStubPullRequest(request.Repo, request.Title, number)
+			d.prs.Set(request.Repo, request.Title, number, stub)
+			return stub, nil
+		}
 		return nil, err
 	}
+	if pr == nil {
+		if number > 0 {
+			stub := gitverse.NewStubPullRequest(request.Repo, request.Title, number)
+			d.prs.Set(request.Repo, request.Title, number, stub)
+			return stub, nil
+		}
+		return nil, nil
+	}
 
-	d.prs.Set(request.Repo, pr.Title, number, pr)
+	d.prs.Set(request.Repo, pr.Title, pr.Number, pr)
+	if request.Title != "" && request.Title != pr.Title {
+		d.prs.Set(request.Repo, request.Title, pr.Number, pr)
+	}
 
 	return pr, nil
 }
@@ -53,7 +77,8 @@ func (d *RequestsDispatcher) fetchAndCache(ctx context.Context, request GetPullR
 func shouldUpdatePRCache(t events.EventType) bool {
 	switch t {
 	case events.PullRequestOpened, events.PullRequestClosed, events.PullRequestEdited,
-		events.PullRequestSynchronized, events.PullRequestReviewRequested:
+		events.PullRequestSynchronized, events.PullRequestReviewRequested, events.PullRequestReviewRequestRemoved,
+		events.PullRequestComment, events.PullRequestReviewApproved, events.PullRequestReviewRejected:
 		return true
 	default:
 		return false

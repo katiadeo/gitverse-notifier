@@ -1,3 +1,4 @@
+# extra_hosts for GitVerse API: scripts/gitverse-extra-hosts.sh → docker-compose.override.yml
 services:
   gitverse-notifier:
     build:
@@ -8,7 +9,7 @@ services:
     image: gitverse-notifier:${VERSION:-latest}
     container_name: gitverse-notifier
     ports:
-      - "80:${HTTPD_PORT:-9001}"
+      - "127.0.0.1:9001:9001"
     volumes:
       - ./config.yml:/opt/gitverse_notifier/config.yml:ro
       - ./configs:/opt/gitverse_notifier/configs:ro

@@ -22,7 +22,7 @@ func (rule *ActionRule) Allowed(event *events.Event) (allowed bool) {
 		return
 	}
 
-	if rule.SkipEmpty && event.Comment.Body == "" {
+	if rule.SkipEmpty && event.Comment.Body == "" && !isCommentDeletedAction(event.Action) {
 		return
 	}
 
@@ -39,6 +39,15 @@ func (rule *ActionRule) Allowed(event *events.Event) (allowed bool) {
 	}
 
 	return true
+}
+
+func isCommentDeletedAction(action string) bool {
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "deleted", "delete", "removed", "remove", "destroy":
+		return true
+	default:
+		return false
+	}
 }
 
 func (rule *ActionRule) cicdStatusAllowed(event *events.Event) (allowed bool) {

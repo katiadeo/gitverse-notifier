@@ -2,3 +2,4 @@ config.yml
 build
 data
 coverage*
+docker-compose.override.yml

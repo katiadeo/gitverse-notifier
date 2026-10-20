@@ -1,0 +1,25 @@
+<p>{{tgPRStateMarker .PullRequest}} {{tgRichPR .PullRequest}} · {{if eq .PullRequest.EffectiveState "merged"}}merged{{with tgRichName .MergedBy}} by {{.}}{{end}}{{else if eq .PullRequest.EffectiveState "closed"}}closed{{else}}opened{{with tgRichName .PullRequest.Author}} by {{.}}{{end}}{{end}}</p>
+{{- with tgRichPRTitle .PullRequest -}}
+<p>{{.}}</p>
+{{- end -}}
+{{- if .PullRequest.Reviewers -}}
+<p>review requested · {{range $i, $r := .PullRequest.Reviewers}}{{if $i}}, {{end}}{{tgRichMention $r}}{{end}}</p>
+{{- end -}}
+{{- if .Comments -}}
+<details><summary>{{tgRichCommentSummary .Comments .PullRequest.Author}}</summary>
+{{- range $ti, $thread := commentThreads .Comments -}}
+{{- if $thread.Replies -}}
+<details><summary>{{tgRichCopyableName $thread.Root.Author}}{{with $thread.Root.URL}} · {{tgRichLink "comment" .}}{{end}}{{if $thread.Root.Edited}} · edited{{end}}{{if $thread.Replies}} · {{len $thread.Replies}} replies{{end}}</summary>
+{{with tgRichQuote $thread.Root.Body}}{{.}}{{end}}
+{{- range $thread.Replies -}}
+&nbsp;&nbsp;↳ {{tgRichCopyableName .Author}}{{with .URL}} · {{tgRichLink "comment" .}}{{end}}{{if .Edited}} · edited{{end}}
+{{with tgRichQuote .Body}}{{.}}{{end}}
+{{- end -}}
+</details>
+{{- else -}}
+{{tgRichCopyableName $thread.Root.Author}}{{with $thread.Root.URL}} · {{tgRichLink "comment" .}}{{end}}{{if $thread.Root.Edited}} · edited{{end}}
+{{with tgRichQuote $thread.Root.Body}}{{.}}{{end}}
+{{- end -}}
+{{- end -}}
+</details>
+{{- end -}}

@@ -1,0 +1,88 @@
+name: build and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "1.27"
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: go test ./... -race -count=1 -timeout 5m -coverprofile=coverage.out -covermode=atomic
+
+      - name: Show coverage
+        run: go tool cover -func=coverage.out
+
+  deploy:
+    name: Deploy to VPS
+    needs: test
+    if: >-
+      vars.ENABLE_VPS_DEPLOY == 'true' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and rebuild on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          NOTIFIER_CONFIG: ${{ secrets.NOTIFIER_CONFIG }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: NOTIFIER_CONFIG
+          # script_stop splits the script into lines and aborts on a false `if` test
+          # (empty NOTIFIER_CONFIG). Keep the script as one shell program.
+          script_stop: false
+          script: |
+            set -e
+            cd /opt/gitverse-notifier
+            git fetch origin
+            git checkout main
+            git reset --hard origin/main
+            if [ -n "${NOTIFIER_CONFIG:-}" ]; then
+              umask 077
+              printf '%s\n' "$NOTIFIER_CONFIG" > config.yml
+              chmod 600 config.yml
+              echo "wrote config.yml from NOTIFIER_CONFIG"
+            else
+              echo "NOTIFIER_CONFIG secret is empty; keeping existing config.yml"
+            fi
+            bash scripts/gitverse-extra-hosts.sh
+            df -h / || true
+            docker system df || true
+            # extra_hosts live in docker-compose.override.yml; --force-recreate
+            # applies them even when the image id did not change.
+            if ! docker compose up -d --build --force-recreate --remove-orphans; then
+              echo "docker build failed; dropping builder cache and retrying"
+              docker builder prune -af || true
+              docker image prune -f || true
+              docker compose up -d --build --force-recreate --remove-orphans
+            fi
+            # dangling images only; keep golang/debian so the next build is a cache hit
+            docker image prune -f
+            for i in $(seq 1 20); do
+              if curl -fsS http://127.0.0.1:9001/health; then
+                echo "health ok"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "health check failed"
+            docker compose logs --tail=80
+            exit 1

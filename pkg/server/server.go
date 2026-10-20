@@ -136,9 +136,12 @@ func (s *HttpServer) handleEvent(ginCtx *gin.Context) {
 		return
 	}
 
-	eventName := ginCtx.Request.Header.Get("X-Gitverse-Event")
-	eventTypeName := ginCtx.Request.Header.Get("X-Gitverse-Event-Type")
-	requestId := ginCtx.GetHeader("X-Gitverse-Delivery")
+	eventName := firstHeader(ginCtx, "X-Gitverse-Event", "X-Gitea-Event", "X-GitHub-Event", "X-Gogs-Event")
+	eventTypeName := firstHeader(ginCtx, "X-Gitverse-Event-Type", "X-Gitea-Event-Type", "X-GitHub-Event-Type", "X-Gogs-Event-Type")
+	if eventTypeName == "" {
+		eventTypeName = eventName
+	}
+	requestId := firstHeader(ginCtx, "X-Gitverse-Delivery", "X-GitHub-Delivery", "X-Gogs-Delivery")
 
 	if requestId != "" {
 		ctx = logger.With(ctx, "request-id", requestId)
@@ -166,6 +169,15 @@ func (s *HttpServer) handleEvent(ginCtx *gin.Context) {
 	}
 
 	ginCtx.Status(http.StatusOK)
+}
+
+func firstHeader(ginCtx *gin.Context, keys ...string) string {
+	for _, key := range keys {
+		if value := ginCtx.GetHeader(key); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func readRequestBody(ctx context.Context, ginCtx *gin.Context) (body []byte, ok bool) {

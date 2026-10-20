@@ -24,6 +24,10 @@ type Data struct {
 	Sender        events.Actor
 	PullRequest   events.PullRequestInfo
 	Comment       events.CommentInfo
+	Comments      []events.CommentInfo
+	Approvals     []events.CommentInfo
+	Rejections    []events.CommentInfo
+	MergedBy      events.Actor
 	Push          events.PushInfo
 	Status        events.StatusInfo
 	IssueKeys     []string
@@ -41,6 +45,10 @@ func DataFromEvent(ev *events.Event) Data {
 		Sender:        ev.Sender,
 		PullRequest:   ev.PullRequest,
 		Comment:       ev.Comment,
+		Comments:      commentInfosFromEvent(ev),
+		Approvals:     ev.Approvals,
+		Rejections:    ev.Rejections,
+		MergedBy:      ev.MergedBy,
 		Push:          ev.Push,
 		Status:        ev.Status,
 		IssueKeys:     ev.IssueKeys,
@@ -53,20 +61,44 @@ type Engine struct {
 
 func funcMap() template.FuncMap {
 	return template.FuncMap{
-		"jiraEscape":       JiraEscape,
-		"tgEscape":         TelegramEscape,
-		"trim":             strings.TrimSpace,
-		"join":             strings.Join,
-		"jiraLink":         JiraLink,
-		"mdLink":           MarkdownLink,
-		"tgLink":           TelegramLink,
-		"issueURL":         IssueURL,
-		"tgIssueURLs":      TelegramIssueURLs,
-		"mdIssueURLs":      MarkdownIssueURLs,
-		"jiraIssueURLs":    JiraIssueURLs,
-		"tgMention":        TelegramMention,
-		"tgMentions":       TelegramMentions,
+		"jiraEscape":           JiraEscape,
+		"trim":                 strings.TrimSpace,
+		"join":                 strings.Join,
+		"jiraLink":             JiraLink,
+		"mdLink":               MarkdownLink,
+		"tgLink":               TelegramLink,
+		"issueURL":             IssueURL,
+		"mdIssueURLs":          MarkdownIssueURLs,
+		"plain":                StripHTML,
+		"tgPlain":              TelegramPlain,
+		"tgPR":                 TelegramPR,
+		"tgName":               TelegramName,
+		"tgRichLink":           TelegramRichLink,
+		"tgRichPR":             TelegramRichPR,
+		"tgPRStateMarker":      TelegramPRStateMarker,
+		"tgRichPlain":          TelegramRichPlain,
+		"tgRichPRTitle":        TelegramRichPRTitle,
+		"tgRichQuote":          TelegramRichQuote,
+		"tgRichName":           TelegramRichName,
+		"tgRichCopyableName":   TelegramRichCopyableName,
+		"tgRichMention":        TelegramRichMention,
+		"tgRichCommentSummary": TelegramRichCommentSummary,
+		"reverseComments":      ReverseComments,
+		"commentThreads":       CommentThreads,
 	}
+}
+
+func commentInfosFromEvent(ev *events.Event) []events.CommentInfo {
+	if ev == nil {
+		return nil
+	}
+	if len(ev.Comments) > 0 {
+		return ev.Comments
+	}
+	if ev.Comment.Author != (events.Actor{}) || strings.TrimSpace(ev.Comment.Body) != "" {
+		return []events.CommentInfo{ev.Comment}
+	}
+	return nil
 }
 
 func SetupTemplateEngine() (*Engine, error) {
@@ -89,9 +121,6 @@ func SetupTemplateEngine() (*Engine, error) {
 			return nil, fmt.Errorf("read template %s: %w", path, err)
 		}
 
-		// Учитываем, что шаблоны могут быть в каталогах и иметь одинаковые имена, например
-		// 	telegram/default.tmpl
-		// 	jira/default.tml
 		rel, err := filepath.Rel(cfg.TemplatesDirPath, path)
 		name := strings.TrimSuffix(rel, filepath.Ext(rel))
 		if _, err := root.New(name).Parse(string(content)); err != nil {
@@ -116,8 +145,4 @@ func (e *Engine) Render(name string, data Data) (string, error) {
 	}
 
 	return buf.String(), nil
-}
-
-func (e *Engine) Has(name string) bool {
-	return e.engine.Lookup(name) != nil
 }

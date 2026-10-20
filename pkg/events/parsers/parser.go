@@ -19,7 +19,7 @@ func ParseEvent(_ context.Context, eventName, eventTypeName, requestId string, b
 
 	switch event.Type {
 	case events.PullRequestOpened, events.PullRequestClosed, events.PullRequestEdited, events.PullRequestSynchronized,
-		events.PullRequestReviewRequested, events.PullRequestReviewApproved, events.PullRequestReviewRejected,
+		events.PullRequestReviewRequested, events.PullRequestReviewRequestRemoved, events.PullRequestReviewApproved, events.PullRequestReviewRejected,
 		events.PullRequestReviewComment:
 		if err := fillPullRequest(&event, body); err != nil {
 			return event, err

@@ -32,11 +32,15 @@ func (a *GitverseCreateComment) Ready() bool {
 }
 
 func (a *GitverseCreateComment) Run(ctx context.Context, event *events.Event, rule *settings.ActionRule) error {
+	if n := event.PullRequest.EffectiveNumber(); n > 0 {
+		event.PullRequest.Number = n
+	}
 	if event.Repository == "" || event.PullRequest.Number <= 0 {
 		logger.Info(ctx, "no pull request found, skipping action",
 			"action", a.Name(),
 			"repository", event.Repository,
 			"pr_number", event.PullRequest.Number,
+			"pr_url", event.PullRequest.URL,
 		)
 		return nil
 	}

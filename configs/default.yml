@@ -1,33 +1,39 @@
 repository: any
 
-# Разрешённые коды проектов Jira
+# Разрешённые коды проектов Jira (префикс ключа, например APP).
 # Пустой список — без ограничений.
-allowed_jira_projects:
-  - JIRA
-  - TEST
+allowed_jira_projects: []
 
-# Маппинг логинов из gitverse в логины из telegram,
-# можно использовать с помощью функций tgMention / tgMentions в шаблонах сообщений
+# Маппинг логинов GitVerse → username в Telegram (без @).
+# gitverse_login: telegram_username
 telegram_tags:
-  test: test
+  tmukhortova: katiadeo
+  aviktorov: viktorov616
+  avikharev: Groad9
+  kvolkov: screwpassenger
+  aalavrenov: innokentykedrov
+  nsmirnova: Zig_Zaggggg
 
 # Доступные события - ТОЛЬКО ДЛЯ СПРАВКИ
 available_events:
   - type: pull_request.opened
     description: PR открыт
-  
+
   - type: pull_request.closed
     description: PR закрыт
-  
+
   - type: pull_request.edited
     description: PR обновлен
-  
+
   - type: pull_request.synchronized
     description: PR синхронизирован, обычно при пуше новых комитов в ветку
-  
+
   - type: pull_request.review_requested
-    description: Запрошено ревью PR, не содержит информацию о ревьювере
-  
+    description: Запрошено ревью PR
+
+  - type: pull_request.review_request_removed
+    description: Ревьювер снят с PR
+
   - type: pull_request.review_approved
     description: PR одобрен
 
@@ -69,29 +75,29 @@ available_actions:
   - type: utils.log
     description: Просто логирует основную информацию о событии
 
-# События, которые нужно группировать перед обработкой
+# События, которые нужно группировать перед обработкой.
+# GitVerse в review_requested обычно не присылает имя ревьювера и не шлёт
+# отдельный ивент на снятие. Ждём 60с, потом enricher читает актуальный
+# список requested_reviewers из API.
 event_groups:
-  # Пример:
-  #   Так как gitverse не присылает имя ревьювера в review_requested, а так же не имеет отдельного ивента для удаления ревьювера,
-  #   то мы группируем все запросы на ревью в течение 60 секунд и отправляем уведомление только для последнего
-  - key: events_group # Ключ группы
-    group_by: group.pull_request # Способ группировки событий (имя репозитория + номер PR)
-    strategy: strategy.use_last_event # Стратегия обработки событий - использовать последний ивент
-    event: pull_request.review_requested # Собираемый тип событий
-    size: 99 # ограничение по кол-ву событий в группе
-    ttl: 60 # Время жизни группы, в секундах
+  - key: events_group
+    group_by: group.pull_request
+    strategy: strategy.use_last_event
+    event: pull_request.review_requested
+    size: 99
+    ttl: 60
 
 # Список действий, выполняемых при получении событий
 action_rules:
-  - on: pull_request.opened # Тип события
-    action: jira.comment_issue # Действие
-    template: jira/pr_opened # Имя шаблона (из templates/)
+  - on: pull_request.opened
+    action: jira.comment_issue
+    template: jira/pr_opened
 
   - on: pull_request.opened
     action: jira.mention_at_web
 
   - on: pull_request.opened
-    action: gitverse.create_comment # Комментарий в PR со ссылками на Jira
+    action: gitverse.create_comment
     template: gitverse/jira_issues
 
   - on: pull_request.opened
@@ -99,10 +105,10 @@ action_rules:
     template: telegram/pr_opened
 
   - on: pull_request.edited
-    action: utils.log
+    action: telegram.notify
+    template: telegram/pr_opened
 
   - on: pull_request.closed
-    state: merged # Фильтрация по статусу закрытого PR (merged / closed)
     action: telegram.notify
     template: telegram/pr_merged
 
@@ -110,9 +116,17 @@ action_rules:
     action: telegram.notify
     template: telegram/review_requested
 
+  - on: pull_request.review_request_removed
+    action: telegram.notify
+    template: telegram/review_requested
+
   - on: pull_request.review_approved
     action: telegram.notify
     template: telegram/review_approved
+
+  - on: pull_request.review_rejected
+    action: telegram.notify
+    template: telegram/review_rejected
 
   - on: pull_request.comment
     action: telegram.notify
@@ -128,12 +142,10 @@ action_rules:
     action: jira.comment_issue
     template: jira/branch_created
 
-  - on: branch.created
-    action: telegram.notify
-    template: telegram/branch_created
-
-  - on: pull_request.edited
-    action: utils.log
+  # branch.created в Telegram отключён — шумело при каждой feature-ветке.
+  # - on: branch.created
+  #   action: telegram.notify
+  #   template: telegram/branch_created
 
   - on: pull_request.closed
     action: utils.log

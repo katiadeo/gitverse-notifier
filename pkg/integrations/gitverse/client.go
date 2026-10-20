@@ -3,12 +3,17 @@ package gitverse
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"gitverse-notifier/pkg/config"
 
 	"github.com/go-resty/resty/v2"
 )
+
+func repoAPIPath(repository string) string {
+	return strings.Trim(repository, "/")
+}
 
 const versionHeader = "application/vnd.gitverse.object+json;version=1"
 
@@ -43,12 +48,8 @@ func (c *Client) GetPullRequest(ctx context.Context, repository string, number i
 	var pr PullRequest
 	resp, err := c.resty.R().
 		SetContext(ctx).
-		SetPathParams(map[string]string{
-			"repo":   repository,
-			"number": fmt.Sprintf("%d", number),
-		}).
 		SetResult(&pr).
-		Get("/repos/{repo}/pulls/{number}")
+		Get(fmt.Sprintf("/repos/%s/pulls/%d", repoAPIPath(repository), number))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to make gitverse request: %w", err)
@@ -59,6 +60,7 @@ func (c *Client) GetPullRequest(ctx context.Context, repository string, number i
 			resp.StatusCode(), resp.Request.URL, string(resp.Body()))
 	}
 
+	pr.Normalize()
 	return &pr, nil
 }
 
@@ -70,12 +72,8 @@ func (c *Client) GetCommit(ctx context.Context, repository, sha string) (*Commit
 	var commit CommitInfo
 	resp, err := c.resty.R().
 		SetContext(ctx).
-		SetPathParams(map[string]string{
-			"repo": repository,
-			"sha":  sha,
-		}).
 		SetResult(&commit).
-		Get("/repos/{repo}/commits/{sha}")
+		Get(fmt.Sprintf("/repos/%s/commits/%s", repoAPIPath(repository), sha))
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to make gitverse request: %w", err)
@@ -100,12 +98,8 @@ func (c *Client) CreateIssueComment(ctx context.Context, repository string, issu
 
 	resp, err := c.resty.R().
 		SetContext(ctx).
-		SetPathParams(map[string]string{
-			"repo":   repository,
-			"number": fmt.Sprintf("%d", issueNumber),
-		}).
 		SetBody(createIssueCommentRequest{Body: body}).
-		Post("/repos/{repo}/issues/{number}/comments")
+		Post(fmt.Sprintf("/repos/%s/issues/%d/comments", repoAPIPath(repository), issueNumber))
 
 	if err != nil {
 		return fmt.Errorf("failed to make gitverse request: %w", err)
@@ -117,4 +111,66 @@ func (c *Client) CreateIssueComment(ctx context.Context, repository string, issu
 	}
 
 	return nil
+}
+
+func (c *Client) FindPullRequestByTitle(ctx context.Context, repository, title string) (*PullRequest, error) {
+	want := NormalizePRTitle(title)
+	if repository == "" || want == "" {
+		return nil, nil
+	}
+
+	var fallback []*PullRequest
+	wantKey := issueKeyIn(want)
+
+	for _, state := range []string{"open", "opened", "all"} {
+		pageSize := 0
+		for page := 1; page <= 20; page++ {
+			resp, err := c.resty.R().
+				SetContext(ctx).
+				SetQueryParams(map[string]string{
+					"state":    state,
+					"per_page": "100",
+					"limit":    "100",
+					"page":     fmt.Sprintf("%d", page),
+				}).
+				Get("/repos/" + repoAPIPath(repository) + "/pulls")
+			if err != nil {
+				return nil, fmt.Errorf("failed to make gitverse request: %w", err)
+			}
+			if resp.IsError() {
+				if resp.StatusCode() >= 400 && resp.StatusCode() < 500 {
+					break
+				}
+				return nil, fmt.Errorf("gitverse api returned %d for %s: %s",
+					resp.StatusCode(), resp.Request.URL, string(resp.Body()))
+			}
+			prs, err := decodePullRequests(resp.Body())
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode gitverse pulls: %w", err)
+			}
+			if len(prs) == 0 {
+				break
+			}
+			if page == 1 {
+				pageSize = len(prs)
+			}
+			for i := range prs {
+				prs[i].Normalize()
+				if titlesMatch(prs[i].Title, want) {
+					return &prs[i], nil
+				}
+				if wantKey != "" && strings.Contains(prs[i].Title, wantKey) {
+					fallback = append(fallback, &prs[i])
+				}
+			}
+			if pageSize == 0 || len(prs) < pageSize {
+				break
+			}
+		}
+	}
+
+	if unique := uniquePRs(fallback); len(unique) == 1 {
+		return unique[0], nil
+	}
+	return nil, nil
 }
