@@ -192,13 +192,13 @@ func TestParseEvent_PullRequestOpened_MergesSnakeNumberIntoCamelTitle(t *testing
 			"login": "aalavrenov",
 		},
 		"pullRequest": map[string]any{
-			"title": "Draft: STKPVT-913 [FE] types",
+			"title": "Draft: APP-913 [FE] types",
 			"user":  map[string]any{"login": "aalavrenov"},
 		},
 		"pull_request": map[string]any{
 			"number":   913,
 			"html_url": "https://git.example/org/app/pull/913",
-			"title":    "Draft: STKPVT-913 [FE] types",
+			"title":    "Draft: APP-913 [FE] types",
 			"user":     map[string]any{"login": "aalavrenov"},
 		},
 	})
@@ -207,7 +207,7 @@ func TestParseEvent_PullRequestOpened_MergesSnakeNumberIntoCamelTitle(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, 913, event.PullRequest.Number)
 	assert.Equal(t, "https://git.example/org/app/pull/913", event.PullRequest.URL)
-	assert.Equal(t, "Draft: STKPVT-913 [FE] types", event.PullRequest.Title)
+	assert.Equal(t, "Draft: APP-913 [FE] types", event.PullRequest.Title)
 }
 
 func TestParseEvent_PullRequestOpened_NumberAsJSONFloat(t *testing.T) {

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# If local gitignored config.yml changed, sync NOTIFIER_CONFIG before push.
-# On GitHub origin: uploads via gh. On GitVerse origin: prints manual UI reminder
-# and never blocks the push. The file itself is never committed; we only compare
-# a hash stored in .git/.
+# If local gitignored config.yml changed, upload it to GitHub before push.
+# The file itself is never committed; we only compare a hash stored in .git/.
 set -euo pipefail
 
 root="$(git rev-parse --show-toplevel)"

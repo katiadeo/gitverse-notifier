@@ -213,8 +213,8 @@ func TestRenderTelegramMR(t *testing.T) {
 		MergedBy: events.Actor{TgTag: "eve"},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `<p>🟢 <a href="https://git.example/org/app/pulls/412">#412</a> · opened by <a href="https://t.me/bob">bob</a></p><p><a href="https://jira.example.com/browse/APP-1183">APP-1183</a> [FE] Доработать форму</p><details><summary>@bob · Comments · 2</summary>@carol · edited
-<blockquote>looks good</blockquote>@alice · <a href="https://git.example/org/app/pulls/412#issuecomment-1">comment</a>
+	require.Equal(t, `<p>🟢 <a href="https://git.example/org/app/pulls/412">#412</a> · opened by <a href="https://t.me/bob">bob</a></p><p><a href="https://jira.example.com/browse/APP-1183">APP-1183</a> [FE] Доработать форму</p><details><summary>@bob · Comments · 2</summary><p><b>@carol</b> · edited</p>
+<blockquote>looks good</blockquote><p></p><p><b>@alice</b> · <a href="https://git.example/org/app/pulls/412#issuecomment-1">comment</a></p>
 <blockquote>please check
 second line</blockquote></details>`, body)
 
@@ -246,9 +246,10 @@ func TestRenderTelegramMR_OnlyThreadsAreExpandable(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Contains(t, body, `<details><summary>@alice · 1 replies</summary>`)
-	require.Contains(t, body, `&nbsp;&nbsp;↳ @bob`)
-	require.Contains(t, body, "@carol\n<blockquote>single comment</blockquote>")
+	require.Contains(t, body, `<details><summary><b>@alice</b> · 1 replies</summary>`)
+	require.Contains(t, body, `<p>&nbsp;&nbsp;↳ <b>@bob</b></p>`)
+	require.Contains(t, body, "<p><b>@carol</b></p>\n<blockquote>single comment</blockquote>")
 	require.NotContains(t, body, `<details><summary>@carol`)
+	require.NotContains(t, body, `<details><summary><b>@carol</b>`)
 	require.NotContains(t, body, `· · ·`)
 }

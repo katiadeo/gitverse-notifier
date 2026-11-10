@@ -117,7 +117,7 @@ func fillIssueComment(event *events.Event, body []byte) error {
 		Author:  firstActor(payload.Issue.User, pr.User),
 		HeadRef: firstNonEmpty(pr.Head.Ref, pr.Head.Label),
 		BaseRef: firstNonEmpty(pr.Base.Ref, pr.Base.Label),
-		Merged:  pr.Merged,
+		Merged: pr.Merged,
 	}
 	if event.Repository == "" {
 		event.Repository = RepoPathFromURL(url, payload.Issue.HTMLURL, payload.Issue.URL, payload.Comment.HTMLURL, payload.Comment.URL)

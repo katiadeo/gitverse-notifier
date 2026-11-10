@@ -144,10 +144,33 @@ func (s *TelegramPRThreads) Put(card *TelegramPRCard) {
 	stored := clonePRCard(card)
 	for _, key := range telegramThreadKeys(stored.Repository, stored.Title, stored.Number) {
 		if existing := s.cards[key]; existing != nil {
-			stored = mergePRCards(existing, stored)
+			if samePRCardNumber(existing.Number, stored.Number) {
+				stored = mergePRCards(existing, stored)
+			}
 		}
 	}
-	for _, key := range telegramThreadKeys(stored.Repository, stored.Title, stored.Number) {
+	keys := telegramThreadKeys(stored.Repository, stored.Title, stored.Number)
+	keep := map[string]struct{}{}
+	for _, key := range keys {
+		keep[key] = struct{}{}
+	}
+	// Drop orphan keys for this PR number (e.g. old title after rename) so a
+	// later load cannot resurrect a stale comments list onto #N.
+	if stored.Number > 0 {
+		for key, existing := range s.cards {
+			if existing == nil || existing.Number != stored.Number {
+				continue
+			}
+			if !strings.HasPrefix(key, stored.Repository+"|") {
+				continue
+			}
+			if _, ok := keep[key]; ok {
+				continue
+			}
+			delete(s.cards, key)
+		}
+	}
+	for _, key := range keys {
 		s.cards[key] = stored
 	}
 	s.persistLocked()
@@ -175,10 +198,63 @@ func (s *TelegramPRThreads) Remove(repo, title string, number int) {
 func (s *TelegramPRThreads) lookupLocked(repo, title string, number int) *TelegramPRCard {
 	for _, key := range telegramThreadKeys(repo, title, number) {
 		if card := s.cards[key]; card != nil {
+			if number > 0 && card.Number > 0 && card.Number != number {
+				continue
+			}
 			return card
 		}
 	}
 	return nil
+}
+
+func samePRCardNumber(existing, incoming int) bool {
+	if existing > 0 && incoming > 0 && existing != incoming {
+		return false
+	}
+	return true
+}
+
+func (s *TelegramPRThreads) indexCardLocked(card *TelegramPRCard) {
+	if s == nil || card == nil {
+		return
+	}
+	for _, key := range telegramThreadKeys(card.Repository, card.Title, card.Number) {
+		s.cards[key] = card
+	}
+}
+
+// preferPRCard picks one card when load() finds several JSON copies of the same
+// PR (number / message id). Prefer a non-empty MessageID; when tied, prefer the
+// richer non-identity fields without letting a stale orphan win over an
+// already-chosen number-keyed card (callers skip orphans when #N exists).
+func preferPRCard(existing, incoming *TelegramPRCard) *TelegramPRCard {
+	if existing == nil {
+		return incoming
+	}
+	if incoming == nil {
+		return existing
+	}
+	existID := existing.ResolvedMessageID()
+	inID := incoming.ResolvedMessageID()
+	switch {
+	case existID <= 0 && inID > 0:
+		return incoming
+	case existID > 0 && inID <= 0:
+		return existing
+	case existID > 0 && inID > 0 && existID != inID:
+		if inID > existID {
+			return incoming
+		}
+		return existing
+	case len(incoming.Comments) > len(existing.Comments):
+		return incoming
+	case len(incoming.Comments) < len(existing.Comments):
+		return existing
+	case strings.TrimSpace(incoming.Title) != "" && strings.TrimSpace(existing.Title) == "":
+		return incoming
+	default:
+		return existing
+	}
 }
 
 func (s *TelegramPRThreads) persistLocked() {
@@ -229,7 +305,32 @@ func (s *TelegramPRThreads) load() {
 	}
 	if stored.Cards != nil {
 		s.cards = map[string]*TelegramPRCard{}
+		byNumber := map[string]*TelegramPRCard{}
+		byMessage := map[int]*TelegramPRCard{}
+		unnumbered := make([]*TelegramPRCard, 0)
 		seen := map[*TelegramPRCard]struct{}{}
+
+		// Number-keyed entries are authoritative: orphan title copies must not
+		// overwrite them and resurrect deleted comments on restart.
+		for key, card := range stored.Cards {
+			if card == nil {
+				continue
+			}
+			card.normalize()
+			if card.Number <= 0 {
+				continue
+			}
+			numKey := telegramThreadNumberKey(card.Repository, card.Number)
+			if key != numKey {
+				continue
+			}
+			if _, ok := seen[card]; ok {
+				continue
+			}
+			seen[card] = struct{}{}
+			byNumber[numKey] = preferPRCard(byNumber[numKey], card)
+		}
+
 		for _, card := range stored.Cards {
 			if card == nil {
 				continue
@@ -239,9 +340,28 @@ func (s *TelegramPRThreads) load() {
 			}
 			card.normalize()
 			seen[card] = struct{}{}
-			for _, key := range telegramThreadKeys(card.Repository, card.Title, card.Number) {
-				s.cards[key] = card
+			if card.Number > 0 {
+				numKey := telegramThreadNumberKey(card.Repository, card.Number)
+				if _, ok := byNumber[numKey]; ok {
+					continue
+				}
+				byNumber[numKey] = preferPRCard(byNumber[numKey], card)
+				continue
 			}
+			if id := card.ResolvedMessageID(); id > 0 {
+				byMessage[id] = preferPRCard(byMessage[id], card)
+				continue
+			}
+			unnumbered = append(unnumbered, card)
+		}
+		for _, card := range byNumber {
+			s.indexCardLocked(card)
+		}
+		for _, card := range byMessage {
+			s.indexCardLocked(card)
+		}
+		for _, card := range unnumbered {
+			s.indexCardLocked(card)
 		}
 		return
 	}

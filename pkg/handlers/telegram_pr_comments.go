@@ -1,12 +1,19 @@
 package handlers
 
 import (
+	"regexp"
 	"strings"
 
 	"gitverse-notifier/pkg/comments"
 	"gitverse-notifier/pkg/events"
 	"gitverse-notifier/pkg/templates"
 )
+
+var commentBodySpaceRe = regexp.MustCompile(`\s+`)
+
+func normalizeCommentBody(body string) string {
+	return commentBodySpaceRe.ReplaceAllString(strings.TrimSpace(templates.StripHTML(body)), " ")
+}
 
 func reviewComment(event *events.Event) events.CommentInfo {
 	author := event.Sender
@@ -59,7 +66,7 @@ func appendComment(list []events.CommentInfo, comment events.CommentInfo, action
 	}
 	comments.EnsureID(&comment)
 	edited := isEditComment(action)
-	if idx := findCommentIndex(list, comment); idx >= 0 {
+	if idx := findCommentIndex(list, comment, edited || isDeleteComment(action)); idx >= 0 {
 		out := append([]events.CommentInfo(nil), list...)
 		out[idx] = mergeComment(list[idx], comment, edited || list[idx].Edited)
 		return dedupeCommentsByIdentity(out)
@@ -104,6 +111,12 @@ func mergeComment(existing, incoming events.CommentInfo, edited bool) events.Com
 	if strings.TrimSpace(out.URL) == "" {
 		out.URL = existing.URL
 	}
+	if strings.TrimSpace(out.CreatedAt) == "" {
+		out.CreatedAt = existing.CreatedAt
+	}
+	if strings.TrimSpace(out.Body) == "" {
+		out.Body = existing.Body
+	}
 	if out.ReplyTo <= 0 {
 		out.ReplyTo = existing.ReplyTo
 	}
@@ -137,7 +150,7 @@ func mergeActor(existing, incoming events.Actor) events.Actor {
 	return out
 }
 
-func findCommentIndex(list []events.CommentInfo, comment events.CommentInfo) int {
+func findCommentIndex(list []events.CommentInfo, comment events.CommentInfo, allowWeakMatch bool) int {
 	id := comments.Identity(comment)
 	if id > 0 {
 		for i, existing := range list {
@@ -146,13 +159,16 @@ func findCommentIndex(list []events.CommentInfo, comment events.CommentInfo) int
 			}
 		}
 	}
-	url := comments.NormalizeURL(comment.URL)
-	if url != "" {
+	urlID := comments.IDFromURL(comment.URL)
+	if urlID > 0 {
 		for i, existing := range list {
-			if comments.NormalizeURL(existing.URL) == url {
+			if comments.Identity(existing) == urlID {
 				return i
 			}
 		}
+	}
+	if !allowWeakMatch {
+		return -1
 	}
 	if idx := findCommentIndexByCreatedAt(list, comment); idx >= 0 {
 		return idx
@@ -161,14 +177,14 @@ func findCommentIndex(list []events.CommentInfo, comment events.CommentInfo) int
 }
 
 func findCommentIndexByPreviousBody(list []events.CommentInfo, comment events.CommentInfo) int {
-	previous := strings.TrimSpace(templates.StripHTML(comment.PreviousBody))
+	previous := normalizeCommentBody(comment.PreviousBody)
 	if previous == "" {
 		return -1
 	}
 
 	match := -1
 	for i, existing := range list {
-		if !sameActor(existing.Author, comment.Author) || strings.TrimSpace(templates.StripHTML(existing.Body)) != previous {
+		if !sameActor(existing.Author, comment.Author) || normalizeCommentBody(existing.Body) != previous {
 			continue
 		}
 		if match >= 0 {
@@ -199,32 +215,45 @@ func removeComment(list []events.CommentInfo, comment events.CommentInfo) []even
 		return nil
 	}
 	comments.EnsureID(&comment)
-	if idx := findCommentIndex(list, comment); idx >= 0 {
-		out := append([]events.CommentInfo(nil), list[:idx]...)
-		out = append(out, list[idx+1:]...)
-		if len(out) == 0 {
-			return nil
-		}
-		return out
+	if idx := findCommentIndex(list, comment, true); idx >= 0 {
+		return dropCommentAt(list, idx)
 	}
 
-	body := strings.TrimSpace(templates.StripHTML(comment.Body))
+	body := normalizeCommentBody(comment.Body)
+	if body != "" {
+		for i := len(list) - 1; i >= 0; i-- {
+			existing := list[i]
+			if comment.Author != (events.Actor{}) && !sameActor(existing.Author, comment.Author) {
+				continue
+			}
+			if normalizeCommentBody(existing.Body) != body {
+				continue
+			}
+			return dropCommentAt(list, i)
+		}
+		return list
+	}
+
+	// Empty-body deletes are author-scoped only: never remove another author's
+	// comment, and never guess when the author is also missing.
+	if comment.Author == (events.Actor{}) {
+		return list
+	}
 	for i := len(list) - 1; i >= 0; i-- {
-		existing := list[i]
-		if comment.Author != (events.Actor{}) && !sameActor(existing.Author, comment.Author) {
-			continue
+		if sameActor(list[i].Author, comment.Author) {
+			return dropCommentAt(list, i)
 		}
-		if body != "" && strings.TrimSpace(templates.StripHTML(existing.Body)) != body {
-			continue
-		}
-		out := append([]events.CommentInfo(nil), list[:i]...)
-		out = append(out, list[i+1:]...)
-		if len(out) == 0 {
-			return nil
-		}
-		return out
 	}
 	return list
+}
+
+func dropCommentAt(list []events.CommentInfo, idx int) []events.CommentInfo {
+	out := append([]events.CommentInfo(nil), list[:idx]...)
+	out = append(out, list[idx+1:]...)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func isEditComment(action string) bool {

@@ -8,16 +8,19 @@
 {{- if .Comments -}}
 <details><summary>{{tgRichCommentSummary .Comments .PullRequest.Author}}</summary>
 {{- range $ti, $thread := commentThreads .Comments -}}
+{{- if $ti -}}
+<p></p>
+{{- end -}}
 {{- if $thread.Replies -}}
-<details><summary>{{tgRichCopyableName $thread.Root.Author}}{{with $thread.Root.URL}} · {{tgRichLink "comment" .}}{{end}}{{if $thread.Root.Edited}} · edited{{end}}{{if $thread.Replies}} · {{len $thread.Replies}} replies{{end}}</summary>
+<details><summary><b>{{tgRichCopyableName $thread.Root.Author}}</b>{{with $thread.Root.URL}} · {{tgRichLink "comment" .}}{{end}}{{if $thread.Root.Edited}} · edited{{end}}{{if $thread.Replies}} · {{len $thread.Replies}} replies{{end}}</summary>
 {{with tgRichQuote $thread.Root.Body}}{{.}}{{end}}
 {{- range $thread.Replies -}}
-&nbsp;&nbsp;↳ {{tgRichCopyableName .Author}}{{with .URL}} · {{tgRichLink "comment" .}}{{end}}{{if .Edited}} · edited{{end}}
+<p>&nbsp;&nbsp;↳ <b>{{tgRichCopyableName .Author}}</b>{{with .URL}} · {{tgRichLink "comment" .}}{{end}}{{if .Edited}} · edited{{end}}</p>
 {{with tgRichQuote .Body}}{{.}}{{end}}
 {{- end -}}
 </details>
 {{- else -}}
-{{tgRichCopyableName $thread.Root.Author}}{{with $thread.Root.URL}} · {{tgRichLink "comment" .}}{{end}}{{if $thread.Root.Edited}} · edited{{end}}
+<p><b>{{tgRichCopyableName $thread.Root.Author}}</b>{{with $thread.Root.URL}} · {{tgRichLink "comment" .}}{{end}}{{if $thread.Root.Edited}} · edited{{end}}</p>
 {{with tgRichQuote $thread.Root.Body}}{{.}}{{end}}
 {{- end -}}
 {{- end -}}

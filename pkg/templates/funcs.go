@@ -373,7 +373,7 @@ func ReverseComments(list []events.CommentInfo) []events.CommentInfo {
 
 func CommentCardMarkdown(data Data) string {
 	var b strings.Builder
-	b.WriteString(TelegramPRStateMarker(data.PullRequest))
+	b.WriteString(TelegramEscape(TelegramPRStateMarker(data.PullRequest)))
 	b.WriteByte(' ')
 	b.WriteString(TelegramPR(data.PullRequest))
 	switch data.PullRequest.EffectiveState() {
@@ -406,7 +406,10 @@ func CommentCardMarkdown(data Data) string {
 			b.WriteString(" · ")
 		}
 		fmt.Fprintf(&b, "Comments · %d\n", len(data.Comments))
-		for _, comment := range data.Comments {
+		for i, comment := range data.Comments {
+			if i > 0 {
+				b.WriteByte('\n')
+			}
 			b.WriteString("↳ ")
 			b.WriteString(TelegramName(comment.Author))
 			b.WriteByte('\n')

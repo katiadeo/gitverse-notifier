@@ -181,6 +181,56 @@ func TestTelegramPRThreads_GetMissing(t *testing.T) {
 	require.Nil(t, s.Get("org/app", "missing", 1))
 }
 
+func TestTelegramPRThreads_IgnoresIssueKeyWhenPRNumberDiffers(t *testing.T) {
+	config.GlobalConfig = &config.Config{}
+	s := NewTelegramPRThreads()
+	s.Put(&TelegramPRCard{
+		MessageID:  10,
+		Repository: "org/app",
+		Number:     214,
+		Title:      "APP-1659 form work",
+		Closed:     true,
+	})
+
+	got := s.Get("org/app", "APP-1659 another MR", 530)
+	require.Nil(t, got)
+
+	still := s.Get("org/app", "", 214)
+	require.NotNil(t, still)
+	require.True(t, still.Closed)
+	require.Equal(t, 10, still.ResolvedMessageID())
+}
+
+func TestTelegramPRThreads_NewPRReindexesIssueKeyWithoutMergingOld(t *testing.T) {
+	config.GlobalConfig = &config.Config{}
+	s := NewTelegramPRThreads()
+	s.Put(&TelegramPRCard{
+		MessageID:  10,
+		Repository: "org/app",
+		Number:     214,
+		Title:      "APP-1659 original",
+		Closed:     true,
+	})
+	s.Put(&TelegramPRCard{
+		MessageID:  99,
+		Repository: "org/app",
+		Number:     530,
+		Title:      "APP-1659 follow-up",
+		Opened:     true,
+	})
+
+	byIssue := s.Get("org/app", "APP-1659 later", 0)
+	require.NotNil(t, byIssue)
+	require.Equal(t, 530, byIssue.Number)
+	require.Equal(t, 99, byIssue.ResolvedMessageID())
+	require.False(t, byIssue.Closed)
+
+	old := s.Get("org/app", "", 214)
+	require.NotNil(t, old)
+	require.True(t, old.Closed)
+	require.Equal(t, 10, old.ResolvedMessageID())
+}
+
 func TestTelegramPRThreads_LoadsLegacyIDs(t *testing.T) {
 	root := t.TempDir()
 	config.GlobalConfig = &config.Config{Root: root}
@@ -192,4 +242,64 @@ func TestTelegramPRThreads_LoadsLegacyIDs(t *testing.T) {
 	got := loaded.Get("org/app", "", 412)
 	require.NotNil(t, got)
 	require.Equal(t, 99, got.ResolvedMessageID())
+}
+
+func TestTelegramPRThreads_RenameDropsOldTitleKey(t *testing.T) {
+	config.GlobalConfig = &config.Config{}
+	s := NewTelegramPRThreads()
+	s.Put(&TelegramPRCard{
+		MessageID:  10,
+		Repository: "org/app",
+		Number:     214,
+		Title:      "plain original title",
+		Comments:   []events.CommentInfo{{ID: 1, Body: "c1"}},
+	})
+	s.Put(&TelegramPRCard{
+		MessageID:  10,
+		Repository: "org/app",
+		Number:     214,
+		Title:      "plain renamed title",
+		Comments:   []events.CommentInfo{{ID: 1, Body: "c1"}, {ID: 2, Body: "c2"}},
+	})
+
+	require.Nil(t, s.Get("org/app", "plain original title", 0))
+	got := s.Get("org/app", "plain renamed title", 0)
+	require.NotNil(t, got)
+	require.Len(t, got.Comments, 2)
+	require.Equal(t, 10, got.ResolvedMessageID())
+}
+
+func TestTelegramPRThreads_LoadPrefersNumberKeyOverStaleTitle(t *testing.T) {
+	root := t.TempDir()
+	dataDir := filepath.Join(root, "data")
+	require.NoError(t, os.MkdirAll(dataDir, 0o755))
+	file := filepath.Join(dataDir, telegramPRThreadsFileName)
+	content := `{
+  "cards": {
+    "org/app|#214": {
+      "message_id": 10,
+      "repository": "org/app",
+      "number": 214,
+      "title": "plain renamed title",
+      "comments": [{"id": 1, "body": "kept"}]
+    },
+    "org/app|plain original title": {
+      "message_id": 10,
+      "repository": "org/app",
+      "number": 214,
+      "title": "plain original title",
+      "comments": [{"id": 1, "body": "kept"}, {"id": 2, "body": "deleted-but-stale"}]
+    }
+  }
+}`
+	require.NoError(t, os.WriteFile(file, []byte(content), 0o644))
+
+	config.GlobalConfig = &config.Config{Root: root}
+	s := NewTelegramPRThreads()
+
+	byNum := s.Get("org/app", "", 214)
+	require.NotNil(t, byNum)
+	require.Len(t, byNum.Comments, 1)
+	require.Equal(t, "kept", byNum.Comments[0].Body)
+	require.Nil(t, s.Get("org/app", "plain original title", 0))
 }

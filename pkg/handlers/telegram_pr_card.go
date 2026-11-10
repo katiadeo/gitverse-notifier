@@ -274,6 +274,9 @@ func applyPRCardEvent(card *cache.TelegramPRCard, event *events.Event) {
 	switch event.Type {
 	case events.PullRequestOpened:
 		card.Opened = true
+		card.Closed = false
+		card.Merged = false
+		card.MergedBy = events.Actor{}
 		applyReviewers(card, event)
 	case events.PullRequestEdited:
 		applyReviewers(card, event)
@@ -333,7 +336,22 @@ func applyCardToEvent(event *events.Event, card *cache.TelegramPRCard) {
 	if card.Merged {
 		event.PullRequest.Merged = true
 		event.PullRequest.State = "merged"
-	} else if card.Closed {
+		return
+	}
+	if card.Closed {
+		if isOpenPRState(event.PullRequest.State) && !event.PullRequest.Merged {
+			card.Closed = false
+			return
+		}
 		event.PullRequest.State = "closed"
+	}
+}
+
+func isOpenPRState(state string) bool {
+	switch strings.ToLower(strings.TrimSpace(state)) {
+	case "open", "opened":
+		return true
+	default:
+		return false
 	}
 }

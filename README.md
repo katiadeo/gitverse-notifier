@@ -29,30 +29,22 @@ docker compose up -d
 | Файл | Что внутри | Как попадает на VPS |
 |---|---|---|
 | `configs/default.yml` | Теги Telegram, проекты Jira, какие события слать | Обычный `git push` |
-| `config.yml` | Токены, URL, пароль webhook | **Не в git.** Едет через CI secret `NOTIFIER_CONFIG` |
+| `config.yml` | Токены, URL, пароль webhook | **Не в git.** Едет через GitHub secret `NOTIFIER_CONFIG` |
 
 Хуки после клонирования: `make init_configs` (включает `core.hooksPath .githooks`).
-
-Источник правды для кода — remote `origin` на GitVerse:
-`ssh://git@git.eaisto.at-consulting.ru:32222/tmukhortova/gitverse-notifier.git`.
-CI читает workflow из `.github/workflows` (настройка репозитория GitVerse).
 
 ### Как выкатить изменения
 
 Одного коммита мало — нужен **`git push` в `main`**.
 
-1. Коммитите код и пушите в `main` на GitVerse.
-2. На вашей машине pre-push хук смотрит, менялся ли `config.yml` (хеш в `.git/`, сам файл в коммит не попадает). Если `origin` — GitHub, скрипт заливает секрет через `gh`. Если `origin` — GitVerse, скрипт **не блокирует пуш** и напоминает обновить secret вручную в UI.
-3. В CI один workflow **build and deploy**: сначала **Test**, затем **Deploy to VPS**. На pull request будет только Test.
+1. Коммитите код и пушите в `main`.
+2. На вашей машине, **до** отправки в GitHub, хук смотрит, менялся ли `config.yml` (сравнивается хеш в `.git/`, сам файл в коммит не попадает). Если да — заливает его в secret `NOTIFIER_CONFIG` репозитория из remote `origin`. Скрипт на VPS не запускается.
+3. В GitHub Actions один workflow **build and deploy**: сначала **Test**, затем **Deploy to VPS**. На pull request будет только Test.
 4. Деплой на сервере берёт `config.yml` из секрета, перезаписывает файл и пересобирает контейнер.
 
-Публикация Docker-образа в GHCR (`.github/workflows/publish-docker.yml`) завязана на GitHub Container Registry и на GitVerse **не используется**.
+Публикация Docker-образа в GHCR — отдельный ручной workflow, не каждый пуш.
 
 ### Только секреты, без пуша кода
-
-На GitVerse обновите CI secret `NOTIFIER_CONFIG` вручную в UI (вставьте содержимое локального `config.yml`), затем при необходимости запустите workflow **build and deploy** вручную.
-
-Если `origin` ещё указывает на GitHub:
 
 ```bash
 make sync-config DEPLOY=1
@@ -64,27 +56,31 @@ make sync-config DEPLOY=1
 make sync-config
 ```
 
+Обе команды пишут секрет в репозиторий remote `origin`. Если есть ещё и `upstream`, он не используется. На машине нужен [GitHub CLI](https://cli.github.com/) и вход `gh auth login`: Personal Access Token (classic) со scope `repo`, `workflow`, `read:org` ([создать](https://github.com/settings/tokens/new)). Это токен вашего аккаунта GitHub. В `config.yml` и в git он не кладётся, другому человеку его не передают — он заводит свой.
+
 ### Секреты, токены и ключи
 
 Четыре разных места. Их нельзя подменять друг другом.
 
-**`config.yml` — секреты бота.** В git не коммитится. На VPS приезжает целиком как CI secret `NOTIFIER_CONFIG`. Поля — в таблице ниже. Обязательные для работы бота: `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`, `GITVERSE_TOKEN` вместе с `GITVERSE_API_URL` и `GITVERSE_BASE_URL`, `JIRA_TOKEN` либо пара `JIRA_USERNAME` / `JIRA_PASSWORD` и `JIRA_URL`. `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` нужны, только если webhook закрыт паролем.
+**`config.yml` — секреты бота.** В git не коммитится. На VPS приезжает целиком как Actions secret `NOTIFIER_CONFIG` (отдельное значение придумывать не надо, его записывает `make sync-config`). Поля — в таблице ниже. Обязательные для работы бота: `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`, `GITVERSE_TOKEN` вместе с `GITVERSE_API_URL` и `GITVERSE_BASE_URL`, `JIRA_TOKEN` либо пара `JIRA_USERNAME` / `JIRA_PASSWORD` и `JIRA_URL`. `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` нужны, только если webhook закрыт паролем.
 
-**GitVerse → CI/CD → Secrets / Variables** репозитория `origin`:
+**GitHub → Settings → Secrets and variables → Actions** репозитория `origin`:
 
 | Имя | Где | Зачем |
 |---|---|---|
 | `NOTIFIER_CONFIG` | Secrets | копия `config.yml` |
 | `VPS_HOST` | Secrets | адрес сервера |
 | `VPS_USER` | Secrets | пользователь SSH |
-| `VPS_SSH_KEY` | Secrets | приватный ключ, которым CI заходит на VPS. Публичная часть лежит в `authorized_keys` на сервере. Это не ключ для `git push` |
+| `VPS_SSH_KEY` | Secrets | приватный ключ, которым Actions заходит на VPS. Публичная часть лежит в `authorized_keys` на сервере. Это не ключ для `git push` |
 | `ENABLE_VPS_DEPLOY` = `true` | Variables | без неё job Deploy to VPS не запускается |
 
-**На машине, с которой пушите.** SSH-ключ для `git push` на GitVerse (`~/.ssh/id_ed25519_gitverse`, хост `git.eaisto.at-consulting.ru:32222`).
+`GITHUB_TOKEN` для публикации образа в GHCR GitHub подставляет сам, создавать его не нужно.
 
-**На VPS.** Workflow делает `git fetch origin` — remote на сервере должен указывать на GitVerse, и на сервере должен быть доступ к репозиторию (обычно deploy key). Новому человеку нужен вход на VPS, а не копия этого ключа.
+**На машине, с которой пушите.** SSH-ключ для `git push` и PAT для `gh auth login`. Оба остаются у владельца машины. При `gh auth login` загрузку SSH-ключа в GitHub можно пропустить, если ключ для push уже есть.
 
-**Если бота передаёте:** `config.yml`, доступ к репозиторию GitVerse (секреты из таблицы выше) и доступ на VPS. Свой SSH-ключ для push оставляете себе.
+**На VPS.** Workflow делает `git fetch` и отдельный токен туда не передаёт. На сервере уже должен быть свой доступ к репозиторию (обычно deploy key). Новому человеку нужен вход на VPS, а не копия этого ключа. `brew` и `gh` на сервере не нужны.
+
+**Если бота передаёте:** `config.yml`, доступ к репозиторию GitHub (секреты из таблицы выше) и доступ на VPS. Свой PAT и свой SSH-ключ для GitHub оставляете себе.
 
 Ключи можно задать в `config.yml` или переменными окружения:
 

@@ -166,6 +166,95 @@ func TestApplyPRCardEvent_DeletesComment(t *testing.T) {
 	require.Empty(t, card.Comments)
 }
 
+func TestApplyPRCardEvent_DeleteAfterEditKeepsCreatedAt(t *testing.T) {
+	t.Parallel()
+
+	alice := events.Actor{Login: "alice", TgTag: "alice"}
+	card := &cache.TelegramPRCard{}
+	applyPRCardEvent(card, &events.Event{
+		Type:   events.PullRequestComment,
+		Action: "created",
+		Comment: events.CommentInfo{
+			Author:    alice,
+			Body:      "first",
+			CreatedAt: "2026-10-20T17:03:29Z",
+		},
+	})
+	applyPRCardEvent(card, &events.Event{
+		Type:   events.PullRequestComment,
+		Action: "created",
+		Comment: events.CommentInfo{
+			Author:    alice,
+			Body:      "second",
+			CreatedAt: "2026-10-20T17:04:29Z",
+		},
+	})
+	applyPRCardEvent(card, &events.Event{
+		Type:   events.PullRequestComment,
+		Action: "edited",
+		Comment: events.CommentInfo{
+			Author:       alice,
+			Body:         "first edited",
+			PreviousBody: "first",
+			// GitVerse often omits created_at on edits.
+		},
+	})
+	require.Len(t, card.Comments, 2)
+	assert.Equal(t, "2026-10-20T17:03:29Z", card.Comments[0].CreatedAt)
+	assert.Equal(t, "first edited", card.Comments[0].Body)
+
+	applyPRCardEvent(card, &events.Event{
+		Type:   events.PullRequestComment,
+		Action: "deleted",
+		Comment: events.CommentInfo{
+			Author:    alice,
+			CreatedAt: "2026-10-20T17:03:29Z",
+		},
+	})
+	require.Len(t, card.Comments, 1)
+	assert.Equal(t, "second", card.Comments[0].Body)
+}
+
+func TestApplyPRCardEvent_DeletesSparseGitVersePayload(t *testing.T) {
+	t.Parallel()
+
+	alice := events.Actor{Login: "alice"}
+	card := &cache.TelegramPRCard{
+		Comments: []events.CommentInfo{
+			{Author: alice, Body: "<p>bla bla   bla blaaa</p>"},
+			{Author: events.Actor{Login: "bob"}, Body: "keep"},
+		},
+	}
+	// Mirrors TestParseEvent_IssueCommentDeletedKeepsAction: body + author only.
+	applyPRCardEvent(card, &events.Event{
+		Type:   events.PullRequestComment,
+		Action: "deleted",
+		Comment: events.CommentInfo{
+			Author: alice,
+			Body:   "bla bla bla blaaa",
+		},
+	})
+	require.Len(t, card.Comments, 1)
+	assert.Equal(t, "keep", card.Comments[0].Body)
+}
+
+func TestRemoveCommentEmptyBodyDoesNotDropOtherAuthor(t *testing.T) {
+	t.Parallel()
+
+	alice := events.Actor{Login: "alice"}
+	bob := events.Actor{Login: "bob"}
+	got := []events.CommentInfo{
+		{Author: alice, Body: "alice"},
+		{Author: bob, Body: "bob"},
+	}
+	got = removeComment(got, events.CommentInfo{})
+	require.Len(t, got, 2)
+
+	got = removeComment(got, events.CommentInfo{Author: bob})
+	require.Len(t, got, 1)
+	assert.Equal(t, "alice", got[0].Body)
+}
+
 func TestApplyPRCardEvent_EditsComment(t *testing.T) {
 	t.Parallel()
 
@@ -377,6 +466,73 @@ func TestApplyPRCardEvent_CommentURLFromPR(t *testing.T) {
 	}
 	applyPRCardEvent(card, event)
 	require.Equal(t, "https://git.example/org/app/pulls/412#issuecomment-77", card.Comments[0].URL)
+}
+
+func TestAppendCommentCreateDoesNotMergeBarePRURL(t *testing.T) {
+	t.Parallel()
+
+	alice := events.Actor{Login: "alice", TgTag: "alice"}
+	prURL := "https://git.example/org/app/pulls/298"
+	got := appendComment(nil, events.CommentInfo{
+		Author: alice,
+		Body:   "first",
+		URL:    prURL,
+	}, "created")
+	got = appendComment(got, events.CommentInfo{
+		Author: alice,
+		Body:   "second",
+		URL:    prURL,
+	}, "created")
+	require.Len(t, got, 2)
+}
+
+func TestApplyPRCardEvent_OpenClearsClosed(t *testing.T) {
+	t.Parallel()
+
+	card := &cache.TelegramPRCard{Closed: true, Merged: true, MergedBy: events.Actor{TgTag: "eve"}}
+	applyPRCardEvent(card, &events.Event{Type: events.PullRequestOpened})
+	require.False(t, card.Closed)
+	require.False(t, card.Merged)
+	require.Equal(t, events.Actor{}, card.MergedBy)
+}
+
+func TestApplyCardToEvent_OpenStateClearsStaleClosed(t *testing.T) {
+	t.Parallel()
+
+	card := &cache.TelegramPRCard{Closed: true, Comments: []events.CommentInfo{{Body: "n"}}}
+	event := &events.Event{
+		PullRequest: events.PullRequestInfo{State: "open"},
+	}
+	applyCardToEvent(event, card)
+	require.False(t, card.Closed)
+	require.Equal(t, "open", event.PullRequest.State)
+}
+
+func TestPRCardDoesNotReuseClosedCardForNewPRNumber(t *testing.T) {
+	config.GlobalConfig = &config.Config{GitverseBaseURL: "https://git.example"}
+	threads := cache.NewTelegramPRThreads()
+	threads.Put(&cache.TelegramPRCard{
+		MessageID:  10,
+		Repository: "org/app",
+		Number:     214,
+		Title:      "APP-1659 original",
+		Closed:     true,
+	})
+	a := &TelegramNotify{threads: threads}
+	event := &events.Event{
+		Type:       events.PullRequestOpened,
+		Repository: "org/app",
+		PullRequest: events.PullRequestInfo{
+			Number: 530,
+			Title:  "APP-1659 follow-up",
+			State:  "open",
+		},
+	}
+
+	card := a.prCard(event)
+	require.Equal(t, 530, card.Number)
+	require.Zero(t, card.ResolvedMessageID())
+	require.Equal(t, 530, event.PullRequest.Number)
 }
 
 func TestPRCardRecoversNumberAndURLFromAnyIssueKey(t *testing.T) {
