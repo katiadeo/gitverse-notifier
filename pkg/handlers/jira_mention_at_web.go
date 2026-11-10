@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"gitverse-notifier/pkg/events"
 	"gitverse-notifier/pkg/integrations/jira"
@@ -10,11 +12,15 @@ import (
 )
 
 type JiraMentionAtWeb struct {
-	client *jira.JiraClient
+	client jiraIssueClient
 }
 
 func NewJiraMentionAtWeb(client *jira.JiraClient) *JiraMentionAtWeb {
-	return &JiraMentionAtWeb{client: client}
+	var api jiraIssueClient
+	if client != nil {
+		api = client
+	}
+	return &JiraMentionAtWeb{client: api}
 }
 
 func (a *JiraMentionAtWeb) Name() string {
@@ -45,9 +51,25 @@ func (a *JiraMentionAtWeb) Run(ctx context.Context, event *events.Event, rule *s
 		return nil
 	}
 
+	logger.Info(ctx, "adding jira web mentions",
+		"action", a.Name(),
+		"event", event.Type,
+		"issue-keys", len(event.IssueKeys),
+		"keys", strings.Join(event.IssueKeys, ","),
+	)
+
+	var errs []error
 	for _, key := range event.IssueKeys {
 		if _, err := a.client.AddMentionedAtWeb(key, event.PullRequest.URL, event.PullRequest.Title); err != nil {
-			return err
+			logger.Error(ctx, "failed to add mentioned-at web link to issue",
+				"action", a.Name(),
+				"event", event.Type,
+				"issue", key,
+				"url", event.PullRequest.URL,
+				"err", err,
+			)
+			errs = append(errs, err)
+			continue
 		}
 		logger.Info(ctx, "successfully added mentioned-at web link to issue",
 			"action", a.Name(),
@@ -58,5 +80,5 @@ func (a *JiraMentionAtWeb) Run(ctx context.Context, event *events.Event, rule *s
 		)
 	}
 
-	return nil
+	return errors.Join(errs...)
 }

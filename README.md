@@ -26,10 +26,10 @@ docker compose up -d
 
 Два разных файла, их нельзя путать:
 
-| Файл | Что внутри | Как попадает на VPS |
-|---|---|---|
-| `configs/default.yml` | Теги Telegram, проекты Jira, какие события слать | Обычный `git push` |
-| `config.yml` | Токены, URL, пароль webhook | **Не в git.** Едет через GitHub secret `NOTIFIER_CONFIG` |
+| Файл                  | Что внутри                                       | Как попадает на VPS                                      |
+| --------------------- | ------------------------------------------------ | -------------------------------------------------------- |
+| `configs/default.yml` | Теги Telegram, проекты Jira, какие события слать | Обычный `git push`                                       |
+| `config.yml`          | Токены, URL, пароль webhook                      | **Не в git.** Едет через GitHub secret `NOTIFIER_CONFIG` |
 
 Хуки после клонирования: `make init_configs` (включает `core.hooksPath .githooks`).
 
@@ -66,13 +66,13 @@ make sync-config
 
 **GitHub → Settings → Secrets and variables → Actions** репозитория `origin`:
 
-| Имя | Где | Зачем |
-|---|---|---|
-| `NOTIFIER_CONFIG` | Secrets | копия `config.yml` |
-| `VPS_HOST` | Secrets | адрес сервера |
-| `VPS_USER` | Secrets | пользователь SSH |
-| `VPS_SSH_KEY` | Secrets | приватный ключ, которым Actions заходит на VPS. Публичная часть лежит в `authorized_keys` на сервере. Это не ключ для `git push` |
-| `ENABLE_VPS_DEPLOY` = `true` | Variables | без неё job Deploy to VPS не запускается |
+| Имя                          | Где       | Зачем                                                                                                                            |
+| ---------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `NOTIFIER_CONFIG`            | Secrets   | копия `config.yml`                                                                                                               |
+| `VPS_HOST`                   | Secrets   | адрес сервера                                                                                                                    |
+| `VPS_USER`                   | Secrets   | пользователь SSH                                                                                                                 |
+| `VPS_SSH_KEY`                | Secrets   | приватный ключ, которым Actions заходит на VPS. Публичная часть лежит в `authorized_keys` на сервере. Это не ключ для `git push` |
+| `ENABLE_VPS_DEPLOY` = `true` | Variables | без неё job Deploy to VPS не запускается                                                                                         |
 
 `GITHUB_TOKEN` для публикации образа в GHCR GitHub подставляет сам, создавать его не нужно.
 
@@ -84,36 +84,36 @@ make sync-config
 
 Ключи можно задать в `config.yml` или переменными окружения:
 
-| Ключ | Описание | Значение по умолчанию |
-|---|---|---|
-| `CONFIGS_DIR_PATH` | Путь к каталогу с конфигами | `configs/` |
-| `TEMPLATES_DIR_PATH` | Путь к каталогу с шаблонами | `templates/` |
-| `TEMPLATES_PATTERN` | Патерн, по которому происходит поиск шаблонов | `**/*.tmp` |
-| `GITVERSE_BASE_URL` | Ссылка на гитверс для использования в уведомлениях | — |
-| `BIND_HOST` | Хост | `0.0.0.0` |
-| `HTTPD_PORT` | Порт | `9001` |
-| `BASIC_AUTH_USER` | Пользователь для базовой аутентификации | — |
-| `BASIC_AUTH_PASSWORD` | Пароль для базовой аутентификации | — |
-| `LOG_LEVEL` | Уровень логирования | `INFO` |
-| `LOG_FILE_NAME` | Имя файла с логами | `gitverse-notifier.log` |
-| `LOG_MAX_SIZE` | Максимальный размер файла с логами (МБ) | `15` |
-| `LOG_MAX_AGE` | Максимальный возвраст логов (дней)  | `7` |
-| `LOG_FORMAT_JSON` | Форматировать ли логи в JSON  | `false` |
-| `LOG_REQUESTS` | Логировать ли body для всех входящих событий  | `false` |
-| `JIRA_URL` | URL для Jira | — |
-| `JIRA_TOKEN` | Токен для Jira | — |
-| `JIRA_USERNAME` / `JIRA_PASSWORD` | Логин и пароль для джиры - альтернатива токену | — |
-| `TELEGRAM_BOT_TOKEN` | Токен Telegram-бота (опционально) | — |
-| `TELEGRAM_CHAT_ID` | ID чата или канала для уведомлений (опционально) | — |
-| `TELEGRAM_THREAD_ID` | ID треда в чате | — |
-| `TELEGRAM_PROXY_URL` | HTTP прокси для Telegram (опционально) | — |
-| `TELEGRAM_PARSE_MODE` | Режим парсинга сообщения `Markdown` / `MarkdownV2` / `HTML` | `MarkdownV2` |
-| `GITVERSE_API_URL` | Адрес публичного API gitverse | — |
-| `GITVERSE_TOKEN` | Токен для публичного API gitverse | — |
-| `CACHE_TTL` | Время кеширования информации о PR (в минутах) | `60` |
-| `EVENT_QUEUE_SIZE` | Размер очереди событий | `256` |
-| `EVENT_WORKER_COUNT` | Кол-во воркеров (горутин), разбирающих очередь событий | `8` |
-| `ENABLE_PPROF` | Доступен ли API для pprof | `false` |
+| Ключ                              | Описание                                                    | Значение по умолчанию   |
+| --------------------------------- | ----------------------------------------------------------- | ----------------------- |
+| `CONFIGS_DIR_PATH`                | Путь к каталогу с конфигами                                 | `configs/`              |
+| `TEMPLATES_DIR_PATH`              | Путь к каталогу с шаблонами                                 | `templates/`            |
+| `TEMPLATES_PATTERN`               | Патерн, по которому происходит поиск шаблонов               | `**/*.tmp`              |
+| `GITVERSE_BASE_URL`               | Ссылка на гитверс для использования в уведомлениях          | —                       |
+| `BIND_HOST`                       | Хост                                                        | `0.0.0.0`               |
+| `HTTPD_PORT`                      | Порт                                                        | `9001`                  |
+| `BASIC_AUTH_USER`                 | Пользователь для базовой аутентификации                     | —                       |
+| `BASIC_AUTH_PASSWORD`             | Пароль для базовой аутентификации                           | —                       |
+| `LOG_LEVEL`                       | Уровень логирования                                         | `INFO`                  |
+| `LOG_FILE_NAME`                   | Имя файла с логами                                          | `gitverse-notifier.log` |
+| `LOG_MAX_SIZE`                    | Максимальный размер файла с логами (МБ)                     | `15`                    |
+| `LOG_MAX_AGE`                     | Максимальный возвраст логов (дней)                          | `7`                     |
+| `LOG_FORMAT_JSON`                 | Форматировать ли логи в JSON                                | `false`                 |
+| `LOG_REQUESTS`                    | Логировать ли body для всех входящих событий                | `false`                 |
+| `JIRA_URL`                        | URL для Jira                                                | —                       |
+| `JIRA_TOKEN`                      | Токен для Jira                                              | —                       |
+| `JIRA_USERNAME` / `JIRA_PASSWORD` | Логин и пароль для джиры - альтернатива токену              | —                       |
+| `TELEGRAM_BOT_TOKEN`              | Токен Telegram-бота (опционально)                           | —                       |
+| `TELEGRAM_CHAT_ID`                | ID чата или канала для уведомлений (опционально)            | —                       |
+| `TELEGRAM_THREAD_ID`              | ID треда в чате                                             | —                       |
+| `TELEGRAM_PROXY_URL`              | HTTP прокси для Telegram (опционально)                      | —                       |
+| `TELEGRAM_PARSE_MODE`             | Режим парсинга сообщения `Markdown` / `MarkdownV2` / `HTML` | `MarkdownV2`            |
+| `GITVERSE_API_URL`                | Адрес публичного API gitverse                               | —                       |
+| `GITVERSE_TOKEN`                  | Токен для публичного API gitverse                           | —                       |
+| `CACHE_TTL`                       | Время кеширования информации о PR (в минутах)               | `60`                    |
+| `EVENT_QUEUE_SIZE`                | Размер очереди событий                                      | `256`                   |
+| `EVENT_WORKER_COUNT`              | Кол-во воркеров (горутин), разбирающих очередь событий      | `8`                     |
+| `ENABLE_PPROF`                    | Доступен ли API для pprof                                   | `false`                 |
 
 ## Конфигурация репозиториев
 
@@ -170,34 +170,33 @@ action_rules:
 Внутри приложения есть ряд типов событий, которые могут использоваться в action->on.
 События из gitverse мапятся в них на основании значений заголовком X-Gitverse-Event и X-Gitverse-Event-Type (и иногда поля action).
 
-| Событие | Описание |
-|---|---|
-| `pull_request.opened` / `.edited` / `.closed` / `synchronized` | Жизненый цикл PR |
-| `pull_request.review_requested` | Запрос ревью PR |
-| `pull_request.review_approved` | PR одобрен |
-| `pull_request.review_rejected` | PR отклонен |
-| `pull_request.review_comment` | Комментарий для PR (но сам комментарий не передается) |
-| `pull_request.comment` | Комментарий для PR (с текстом) |
-| `branch.push` | В ветку запушены изменения |
-| `branch.created` / `branch.deleted` | Ветка создана / удалена |
-| `cicd.status` | Изменение состояния CICD |
-
+| Событие                                                        | Описание                                              |
+| -------------------------------------------------------------- | ----------------------------------------------------- |
+| `pull_request.opened` / `.edited` / `.closed` / `synchronized` | Жизненый цикл PR                                      |
+| `pull_request.review_requested`                                | Запрос ревью PR                                       |
+| `pull_request.review_approved`                                 | PR одобрен                                            |
+| `pull_request.review_rejected`                                 | PR отклонен                                           |
+| `pull_request.review_comment`                                  | Комментарий для PR (но сам комментарий не передается) |
+| `pull_request.comment`                                         | Комментарий для PR (с текстом)                        |
+| `branch.push`                                                  | В ветку запушены изменения                            |
+| `branch.created` / `branch.deleted`                            | Ветка создана / удалена                               |
+| `cicd.status`                                                  | Изменение состояния CICD                              |
 
 ### Список действий
 
-| Действие | Описание |
-|---|---|
-| `jira.comment_issue` | Создает комментарий для задачи в Jira |
-| `jira.mention_at_web` | Добавляет web-ссылку (mentioned in) на PR к задаче в Jira |
-| `gitverse.create_comment` | Создает комментарий в PR Gitverse |
-| `telegram.notify` | Отправляет уведомление в Telegram |
-| `utils.log` | Пишет событие в лог (для отладки) |
-
+| Действие                  | Описание                                                  |
+| ------------------------- | --------------------------------------------------------- |
+| `jira.comment_issue`      | Создает комментарий для задачи в Jira                     |
+| `jira.mention_at_web`     | Добавляет web-ссылку (mentioned in) на PR к задаче в Jira |
+| `gitverse.create_comment` | Создает комментарий в PR Gitverse                         |
+| `telegram.notify`         | Отправляет уведомление в Telegram                         |
+| `utils.log`               | Пишет событие в лог (для отладки)                         |
 
 ## Шаблоны
 
 Файлы внутри `templates/**/*.tmpl` используются как go template.
 Регистрируются с именами вида:
+
 - `templates/jira/pr_opened.tmpl` -> `jira/pr_opened`
 - `templates/telegram/pr_comment.tmpl` -> `telegram/pr_comment`
 
@@ -207,20 +206,18 @@ action_rules:
 Пример шаблона
 
 ```
-{{jiraLink .Sender.Name .Sender.URL}} открыл запрос на слияние{{if .PullRequest.Number}} #{{.PullRequest.Number}}{{end}}: {{jiraLink .PullRequest.Title .PullRequest.URL}} ({{jiraLink .Repository .RepositoryURL}})
-{{- if .Branch}}
-Ветка: {{jiraLink .Branch .BranchURL}}
-{{- end}}
+{{jiraLink .Sender.Name .Sender.URL}} — открыт запрос на слияние{{if .PullRequest.Number}} #{{.PullRequest.Number}}{{end}}: {{jiraLink .PullRequest.Title .PullRequest.URL}}{{if .Branch}} из ветки {{jiraLink .Branch .BranchURL}}{{end}} в {{jiraLink .Repository .RepositoryURL}}
 ```
 
 ### Как парсятся номера задач Jira
 
-- Из заголовка PR — любые вхождения вида `ABC-123`
+- Из заголовка PR — любые вхождения вида `ABC-123` (можно несколько: `APP-1339, APP-1204 …` или `A/B/C`)
 - Из тела PR — любые вхождения вида `ABC-123`
 - Из имени ветки (branch или ref)
 - Задачи фильтруются по проектам, указанным в `allowed_jira_projects` из настроек репозитория
+- `jira.comment_issue` и `jira.mention_at_web` пишут во **все** найденные задачи; ошибка по одной не отменяет остальные
 
 ## В планах
 
-- Поправить удаление группированных событий, если очередь полная 
+- Поправить удаление группированных событий, если очередь полная
 - Написать тесты

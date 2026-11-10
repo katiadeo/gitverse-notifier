@@ -25,6 +25,7 @@ func JiraEscape(s string) string {
 		"[", "\\[",
 		"]", "\\]",
 		"|", "\\|",
+		`"`, `\"`,
 	)
 	return replacer.Replace(s)
 }
