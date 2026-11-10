@@ -41,6 +41,7 @@ clean:
 run:
 	./$(BUILDDIR)/$(NAME) -f config.yml
 
-# Залить локальный config.yml в GitHub secret. DEPLOY=1 — сразу выкатить на VPS.
+# Залить локальный config.yml в CI secret (GitHub via gh; на GitVerse — только reminder).
+# DEPLOY=1 — сразу выкатить на VPS (только при origin=GitHub).
 sync-config:
 	./scripts/sync-config.sh $(if $(DEPLOY),--deploy)
