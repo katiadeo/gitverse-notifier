@@ -26,3 +26,6 @@
 {{- end -}}
 </details>
 {{- end -}}
+{{- if or .Approvals .Rejections -}}
+<p>{{- if .Approvals -}}Approved · {{len .Approvals}} · {{range $i, $a := .Approvals}}{{if $i}}, {{end}}{{tgRichMention $a.Author}}{{end}}{{- end}}{{- if and .Approvals .Rejections}} / {{end}}{{- if .Rejections -}}Changes requested · {{len .Rejections}} · {{range $i, $r := .Rejections}}{{if $i}}, {{end}}{{tgRichMention $r.Author}}{{end}}{{- end}}</p>
+{{- end -}}

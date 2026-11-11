@@ -216,7 +216,7 @@ func TestRenderTelegramMR(t *testing.T) {
 	require.Equal(t, `<p>🟢 <a href="https://git.example/org/app/pulls/412">#412</a> · opened by <a href="https://t.me/bob">bob</a></p><p><a href="https://jira.example.com/browse/APP-1183">APP-1183</a> [FE] Доработать форму</p><details><summary>@bob · Comments · 2</summary><p><b>@carol</b> · edited</p>
 <blockquote>looks good</blockquote><p></p><p><b>@alice</b> · <a href="https://git.example/org/app/pulls/412#issuecomment-1">comment</a></p>
 <blockquote>please check
-second line</blockquote></details>`, body)
+second line</blockquote></details><p>Approved · 1 · @dave</p>`, body)
 
 	merged, err := engine.Render("telegram/mr", Data{
 		PullRequest: events.PullRequestInfo{
