@@ -535,6 +535,44 @@ func TestPRCardDoesNotReuseClosedCardForNewPRNumber(t *testing.T) {
 	require.Equal(t, 530, event.PullRequest.Number)
 }
 
+func TestPRCardDoesNotAdoptAnotherPRViaAmbiguousIssueKey(t *testing.T) {
+	config.GlobalConfig = &config.Config{GitverseBaseURL: "https://git.example"}
+	threads := cache.NewTelegramPRThreads()
+	threads.Put(&cache.TelegramPRCard{
+		MessageID:  10,
+		Repository: "org/app",
+		Number:     214,
+		Title:      "APP-1659 original",
+		Closed:     true,
+		URL:        "https://git.example/org/app/pulls/214",
+	})
+	threads.Put(&cache.TelegramPRCard{
+		MessageID:  99,
+		Repository: "org/app",
+		Number:     530,
+		Title:      "APP-1659 follow-up",
+		Opened:     true,
+		Comments:   []events.CommentInfo{{Body: "on 530"}},
+	})
+	a := &TelegramNotify{threads: threads}
+	event := &events.Event{
+		Repository: "org/app",
+		PullRequest: events.PullRequestInfo{
+			Title: "APP-1659 original",
+		},
+		Comment: events.CommentInfo{Body: "stale comment from 214"},
+	}
+
+	card := a.prCard(event)
+	require.Equal(t, 214, card.Number)
+	require.Equal(t, "APP-1659 original", card.Title)
+	require.NotEqual(t, 530, event.PullRequest.Number)
+
+	still530 := threads.Get("org/app", "", 530)
+	require.Equal(t, "APP-1659 follow-up", still530.Title)
+	require.Equal(t, "on 530", still530.Comments[0].Body)
+}
+
 func TestPRCardRecoversNumberAndURLFromAnyIssueKey(t *testing.T) {
 	config.GlobalConfig = &config.Config{GitverseBaseURL: "https://git.example"}
 	threads := cache.NewTelegramPRThreads()

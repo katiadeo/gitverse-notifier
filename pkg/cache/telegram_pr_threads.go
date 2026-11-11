@@ -196,15 +196,58 @@ func (s *TelegramPRThreads) Remove(repo, title string, number int) {
 }
 
 func (s *TelegramPRThreads) lookupLocked(repo, title string, number int) *TelegramPRCard {
+	var ambiguousIssue *TelegramPRCard
 	for _, key := range telegramThreadKeys(repo, title, number) {
 		if card := s.cards[key]; card != nil {
 			if number > 0 && card.Number > 0 && card.Number != number {
 				continue
 			}
+			if number == 0 && isTelegramThreadIssueKey(key) {
+				issue := issueFromThreadKey(key)
+				if issue != "" && s.countCardsWithIssueKeyLocked(repo, issue) > 1 {
+					ambiguousIssue = card
+					continue
+				}
+			}
 			return card
 		}
 	}
+	if ambiguousIssue != nil {
+		return ambiguousIssue
+	}
 	return nil
+}
+
+func isTelegramThreadIssueKey(key string) bool {
+	return strings.Contains(key, "|key:")
+}
+
+func issueFromThreadKey(key string) string {
+	const prefix = "|key:"
+	if i := strings.LastIndex(key, prefix); i >= 0 {
+		return strings.TrimSpace(key[i+len(prefix):])
+	}
+	return ""
+}
+
+func (s *TelegramPRThreads) countCardsWithIssueKeyLocked(repo, issue string) int {
+	issue = strings.ToUpper(strings.TrimSpace(issue))
+	if issue == "" {
+		return 0
+	}
+	seen := map[int]struct{}{}
+	for _, card := range s.cards {
+		if card == nil || card.Repository != repo || card.Number <= 0 {
+			continue
+		}
+		for _, k := range gitverse.IssueKeysFromTitle(card.Title) {
+			if k == issue {
+				seen[card.Number] = struct{}{}
+				break
+			}
+		}
+	}
+	return len(seen)
 }
 
 func samePRCardNumber(existing, incoming int) bool {

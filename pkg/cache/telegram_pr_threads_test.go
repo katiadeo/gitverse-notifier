@@ -175,6 +175,36 @@ func TestTelegramPRThreads_ClearsCommentsOnPut(t *testing.T) {
 	require.Empty(t, got.Comments)
 }
 
+func TestTelegramPRThreads_AmbiguousIssueKeyPrefersExactTitleOverReindexed(t *testing.T) {
+	config.GlobalConfig = &config.Config{}
+	s := NewTelegramPRThreads()
+	s.Put(&TelegramPRCard{
+		MessageID:  10,
+		Repository: "org/app",
+		Number:     214,
+		Title:      "APP-1659 original",
+		Closed:     true,
+	})
+	s.Put(&TelegramPRCard{
+		MessageID:  99,
+		Repository: "org/app",
+		Number:     530,
+		Title:      "APP-1659 follow-up",
+		Opened:     true,
+		Comments:   []events.CommentInfo{{Body: "on 530"}},
+	})
+
+	got := s.Get("org/app", "APP-1659 original", 0)
+	require.NotNil(t, got)
+	require.Equal(t, 214, got.Number)
+	require.Equal(t, "APP-1659 original", got.Title)
+
+	still530 := s.Get("org/app", "", 530)
+	require.NotNil(t, still530)
+	require.Equal(t, "APP-1659 follow-up", still530.Title)
+	require.Equal(t, "on 530", still530.Comments[0].Body)
+}
+
 func TestTelegramPRThreads_GetMissing(t *testing.T) {
 	config.GlobalConfig = &config.Config{}
 	s := NewTelegramPRThreads()
