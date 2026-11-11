@@ -66,7 +66,12 @@ func appendComment(list []events.CommentInfo, comment events.CommentInfo, action
 	}
 	comments.EnsureID(&comment)
 	edited := isEditComment(action)
-	if idx := findCommentIndex(list, comment, edited || isDeleteComment(action)); idx >= 0 {
+	delete := isDeleteComment(action)
+	idx := findCommentIndex(list, comment, edited || delete)
+	if idx < 0 && !edited && !delete && strings.TrimSpace(comment.CreatedAt) != "" {
+		idx = findCommentIndexByCreatedAt(list, comment)
+	}
+	if idx >= 0 {
 		out := append([]events.CommentInfo(nil), list...)
 		out[idx] = mergeComment(list[idx], comment, edited || list[idx].Edited)
 		return dedupeCommentsByIdentity(out)

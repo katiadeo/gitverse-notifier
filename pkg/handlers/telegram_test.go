@@ -468,6 +468,40 @@ func TestApplyPRCardEvent_CommentURLFromPR(t *testing.T) {
 	require.Equal(t, "https://git.example/org/app/pulls/412#issuecomment-77", card.Comments[0].URL)
 }
 
+func TestAppendCommentCreateDedupesRedeliveryByCreatedAt(t *testing.T) {
+	t.Parallel()
+
+	alice := events.Actor{Login: "alice", TgTag: "alice"}
+	comment := events.CommentInfo{
+		Author:    alice,
+		Body:      "same payload",
+		CreatedAt: "2026-10-20T17:03:29Z",
+	}
+	got := appendComment(nil, comment, "created")
+	got = appendComment(got, comment, "created")
+	require.Len(t, got, 1)
+	assert.Equal(t, "same payload", got[0].Body)
+}
+
+func TestAppendCommentCreateKeepsDistinctCreatedAtForSameAuthor(t *testing.T) {
+	t.Parallel()
+
+	alice := events.Actor{Login: "alice", TgTag: "alice"}
+	got := appendComment(nil, events.CommentInfo{
+		Author:    alice,
+		Body:      "first",
+		CreatedAt: "2026-10-20T17:03:29Z",
+	}, "created")
+	got = appendComment(got, events.CommentInfo{
+		Author:    alice,
+		Body:      "second",
+		CreatedAt: "2026-10-20T17:04:29Z",
+	}, "created")
+	require.Len(t, got, 2)
+	assert.Equal(t, "first", got[0].Body)
+	assert.Equal(t, "second", got[1].Body)
+}
+
 func TestAppendCommentCreateDoesNotMergeBarePRURL(t *testing.T) {
 	t.Parallel()
 
