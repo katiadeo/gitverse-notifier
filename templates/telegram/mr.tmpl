@@ -9,19 +9,23 @@
 <details><summary>{{tgRichCommentSummary .Comments .PullRequest.Author}}</summary>
 {{- range $ti, $thread := commentThreads .Comments -}}
 {{- if $ti -}}
-<p></p>
+<p>&nbsp;</p>
 {{- end -}}
 {{- if $thread.Replies -}}
 <details><summary><b>{{tgRichCopyableName $thread.Root.Author}}</b>{{with $thread.Root.URL}} · {{tgRichLink "comment" .}}{{end}}{{if $thread.Root.Edited}} · edited{{end}}{{if $thread.Replies}} · {{len $thread.Replies}} replies{{end}}</summary>
 {{with tgRichQuote $thread.Root.Body}}{{.}}{{end}}
 {{- range $thread.Replies -}}
-<p>&nbsp;&nbsp;↳ <b>{{tgRichCopyableName .Author}}</b>{{with .URL}} · {{tgRichLink "comment" .}}{{end}}{{if .Edited}} · edited{{end}}</p>
-{{with tgRichQuote .Body}}{{.}}{{end}}
+{{- $replyHdr := printf "&nbsp;&nbsp;↳ <b>%s</b>" (tgRichCopyableName .Author) -}}
+{{- with .URL -}}{{- $replyHdr = printf "%s · %s" $replyHdr (tgRichLink "comment" .) -}}{{- end -}}
+{{- if .Edited -}}{{- $replyHdr = printf "%s · edited" $replyHdr -}}{{- end -}}
+{{with tgRichQuotedComment $replyHdr .Body}}{{.}}{{end}}
 {{- end -}}
 </details>
 {{- else -}}
-<p><b>{{tgRichCopyableName $thread.Root.Author}}</b>{{with $thread.Root.URL}} · {{tgRichLink "comment" .}}{{end}}{{if $thread.Root.Edited}} · edited{{end}}</p>
-{{with tgRichQuote $thread.Root.Body}}{{.}}{{end}}
+{{- $hdr := printf "<b>%s</b>" (tgRichCopyableName $thread.Root.Author) -}}
+{{- with $thread.Root.URL -}}{{- $hdr = printf "%s · %s" $hdr (tgRichLink "comment" .) -}}{{- end -}}
+{{- if $thread.Root.Edited -}}{{- $hdr = printf "%s · edited" $hdr -}}{{- end -}}
+{{with tgRichQuotedComment $hdr $thread.Root.Body}}{{.}}{{end}}
 {{- end -}}
 {{- end -}}
 </details>

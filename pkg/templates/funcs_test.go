@@ -121,6 +121,10 @@ func TestTelegramPlain(t *testing.T) {
 	require.Equal(t, "#", TelegramRichPR(events.PullRequestInfo{}))
 	require.Equal(t, "<blockquote>please check\nsecond line</blockquote>", TelegramRichQuote("please check\nsecond line"))
 	require.Equal(t, "<blockquote><pre><code>line 1\nline 2</code></pre></blockquote>", TelegramRichQuote("```\nline 1\nline 2\n```"))
+	require.Equal(t, "<blockquote><b>@carol</b> · edited<br>looks good</blockquote>", TelegramRichQuotedComment("<b>@carol</b> · edited", "looks good"))
+	require.Equal(t, "<blockquote><b>@alice</b></blockquote>", TelegramRichQuotedComment("<b>@alice</b>", ""))
+	require.Equal(t, "<blockquote>body only</blockquote>", TelegramRichQuotedComment("", "body only"))
+	require.Equal(t, "", TelegramRichQuotedComment("", ""))
 }
 
 func TestTelegramPRStatePresentation(t *testing.T) {
@@ -213,9 +217,7 @@ func TestRenderTelegramMR(t *testing.T) {
 		MergedBy: events.Actor{TgTag: "eve"},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `<p>🟢 <a href="https://git.example/org/app/pulls/412">#412</a> · opened by <a href="https://t.me/bob">bob</a></p><p><a href="https://jira.example.com/browse/APP-1183">APP-1183</a> [FE] Доработать форму</p><details><summary>@bob · Comments · 2</summary><p><b>@carol</b> · edited</p>
-<blockquote>looks good</blockquote><p></p><p><b>@alice</b> · <a href="https://git.example/org/app/pulls/412#issuecomment-1">comment</a></p>
-<blockquote>please check
+	require.Equal(t, `<p>🟢 <a href="https://git.example/org/app/pulls/412">#412</a> · opened by <a href="https://t.me/bob">bob</a></p><p><a href="https://jira.example.com/browse/APP-1183">APP-1183</a> [FE] Доработать форму</p><details><summary>@bob · Comments · 2</summary><blockquote><b>@carol</b> · edited<br>looks good</blockquote><p>&nbsp;</p><blockquote><b>@alice</b> · <a href="https://git.example/org/app/pulls/412#issuecomment-1">comment</a><br>please check
 second line</blockquote></details><p>Approved · 1 · @dave</p>`, body)
 
 	merged, err := engine.Render("telegram/mr", Data{
@@ -247,8 +249,8 @@ func TestRenderTelegramMR_OnlyThreadsAreExpandable(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Contains(t, body, `<details><summary><b>@alice</b> · 1 replies</summary>`)
-	require.Contains(t, body, `<p>&nbsp;&nbsp;↳ <b>@bob</b></p>`)
-	require.Contains(t, body, "<p><b>@carol</b></p>\n<blockquote>single comment</blockquote>")
+	require.Contains(t, body, `<blockquote>&nbsp;&nbsp;↳ <b>@bob</b><br>thread reply</blockquote>`)
+	require.Contains(t, body, "<blockquote><b>@carol</b><br>single comment</blockquote>")
 	require.NotContains(t, body, `<details><summary>@carol`)
 	require.NotContains(t, body, `<details><summary><b>@carol</b>`)
 	require.NotContains(t, body, `· · ·`)

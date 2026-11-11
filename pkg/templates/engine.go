@@ -79,6 +79,7 @@ func funcMap() template.FuncMap {
 		"tgRichPlain":          TelegramRichPlain,
 		"tgRichPRTitle":        TelegramRichPRTitle,
 		"tgRichQuote":          TelegramRichQuote,
+		"tgRichQuotedComment":  TelegramRichQuotedComment,
 		"tgRichName":           TelegramRichName,
 		"tgRichCopyableName":   TelegramRichCopyableName,
 		"tgRichMention":        TelegramRichMention,
