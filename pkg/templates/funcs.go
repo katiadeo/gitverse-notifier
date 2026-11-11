@@ -270,8 +270,9 @@ func TelegramRichQuote(s string) string {
 	return "<blockquote>" + body + "</blockquote>"
 }
 
-// TelegramRichQuotedComment wraps author metadata and body in one blockquote so
-// Telegram keeps them as a single visual group (header<br>body).
+// TelegramRichQuotedComment wraps author metadata and body in one paragraph so
+// Telegram keeps them as a single visual group (header<br>body) that stays
+// selectable for copy (unlike nested <blockquote> inside <details>).
 func TelegramRichQuotedComment(headerHTML, body string) string {
 	headerHTML = strings.TrimSpace(headerHTML)
 	bodyHTML := TelegramRichBody(body)
@@ -281,12 +282,12 @@ func TelegramRichQuotedComment(headerHTML, body string) string {
 		return ""
 	}
 	if headerHTML == "" {
-		return "<blockquote>" + bodyHTML + "</blockquote>"
+		return "<p>" + bodyHTML + "</p>"
 	}
 	if bodyHTML == "" {
-		return "<blockquote>" + headerHTML + "</blockquote>"
+		return "<p>" + headerHTML + "</p>"
 	}
-	return "<blockquote>" + headerHTML + "<br>" + bodyHTML + "</blockquote>"
+	return "<p>" + headerHTML + "<br>" + bodyHTML + "</p>"
 }
 
 func TelegramRichCopyableName(actor events.Actor) string {

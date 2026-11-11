@@ -6,14 +6,14 @@
 <p>review requested · {{range $i, $r := .PullRequest.Reviewers}}{{if $i}}, {{end}}{{tgRichMention $r}}{{end}}</p>
 {{- end -}}
 {{- if .Comments -}}
-<details><summary>{{tgRichCommentSummary .Comments .PullRequest.Author}}</summary>
+<details open><summary>{{tgRichCommentSummary .Comments .PullRequest.Author}}</summary>
 {{- range $ti, $thread := commentThreads .Comments -}}
 {{- if $ti -}}
 <p>&nbsp;</p>
 {{- end -}}
 {{- if $thread.Replies -}}
 <details><summary><b>{{tgRichCopyableName $thread.Root.Author}}</b>{{with $thread.Root.URL}} · {{tgRichLink "comment" .}}{{end}}{{if $thread.Root.Edited}} · edited{{end}}{{if $thread.Replies}} · {{len $thread.Replies}} replies{{end}}</summary>
-{{with tgRichQuote $thread.Root.Body}}{{.}}{{end}}
+{{with tgRichQuotedComment "" $thread.Root.Body}}{{.}}{{end}}
 {{- range $thread.Replies -}}
 {{- $replyHdr := printf "&nbsp;&nbsp;↳ <b>%s</b>" (tgRichCopyableName .Author) -}}
 {{- with .URL -}}{{- $replyHdr = printf "%s · %s" $replyHdr (tgRichLink "comment" .) -}}{{- end -}}
