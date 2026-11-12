@@ -134,7 +134,7 @@ func TestTelegramPRStatePresentation(t *testing.T) {
 
 	closed := events.PullRequestInfo{State: "closed", Title: "APP-42 closed work"}
 	require.Equal(t, "⚫", TelegramPRStateMarker(closed))
-	require.Equal(t, "<s>APP-42 closed work</s>", TelegramRichPRTitle(closed))
+	require.Equal(t, "APP-42 closed work", TelegramRichPRTitle(closed))
 	require.Equal(t, "🟣", TelegramPRStateMarker(events.PullRequestInfo{Merged: true}))
 	require.Equal(t, "🟢", TelegramPRStateMarker(events.PullRequestInfo{State: "open"}))
 }
@@ -230,6 +230,18 @@ second line</p></details><p>Approved · 1 · @dave</p>`, body)
 	})
 	require.NoError(t, err)
 	require.Equal(t, `<p>🟣 <a href="https://git.example/org/app/pulls/412">#412</a> · merged by <a href="https://t.me/eve">eve</a></p>`, merged)
+
+	closed, err := engine.Render("telegram/mr", Data{
+		PullRequest: events.PullRequestInfo{
+			Number: 412,
+			State:  "closed",
+			Title:  "APP-1183 [FE] Доработать форму",
+			URL:    "https://git.example/org/app/pulls/412",
+			Author: events.Actor{Name: "bob", Login: "bob", TgTag: "bob"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, `<p>⚫ <a href="https://git.example/org/app/pulls/412">#412</a> · closed by <a href="https://t.me/bob">bob</a></p><p><a href="https://jira.example.com/browse/APP-1183">APP-1183</a> [FE] Доработать форму</p>`, closed)
 }
 
 func TestRenderTelegramMR_OnlyThreadsAreExpandable(t *testing.T) {

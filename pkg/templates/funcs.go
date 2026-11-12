@@ -237,14 +237,7 @@ func TelegramPRStateMarker(pr events.PullRequestInfo) string {
 }
 
 func TelegramRichPRTitle(pr events.PullRequestInfo) string {
-	title := TelegramRichPlain(pr.Title)
-	if title == "" {
-		return ""
-	}
-	if strings.EqualFold(strings.TrimSpace(pr.EffectiveState()), "closed") {
-		return "<s>" + title + "</s>"
-	}
-	return title
+	return TelegramRichPlain(pr.Title)
 }
 
 func TelegramRichBody(s string) string {
@@ -406,6 +399,10 @@ func CommentCardMarkdown(data Data) string {
 		}
 	case "closed":
 		b.WriteString(" · closed")
+		if name := TelegramName(data.PullRequest.Author); name != "" {
+			b.WriteString(" by ")
+			b.WriteString(name)
+		}
 	default:
 		b.WriteString(" · opened")
 		if name := TelegramName(data.PullRequest.Author); name != "" {
@@ -415,9 +412,6 @@ func CommentCardMarkdown(data Data) string {
 	}
 	b.WriteByte('\n')
 	if title := TelegramPlain(data.PullRequest.Title); title != "" {
-		if strings.EqualFold(strings.TrimSpace(data.PullRequest.EffectiveState()), "closed") {
-			title = "~" + title + "~"
-		}
 		b.WriteString(title)
 		b.WriteByte('\n')
 	}

@@ -1,4 +1,4 @@
-<p>{{tgPRStateMarker .PullRequest}} {{tgRichPR .PullRequest}} · {{if eq .PullRequest.EffectiveState "merged"}}merged{{with tgRichName .MergedBy}} by {{.}}{{end}}{{else if eq .PullRequest.EffectiveState "closed"}}closed{{else}}opened{{with tgRichName .PullRequest.Author}} by {{.}}{{end}}{{end}}</p>
+<p>{{tgPRStateMarker .PullRequest}} {{tgRichPR .PullRequest}} · {{if eq .PullRequest.EffectiveState "merged"}}merged{{with tgRichName .MergedBy}} by {{.}}{{end}}{{else if eq .PullRequest.EffectiveState "closed"}}closed{{with tgRichName .PullRequest.Author}} by {{.}}{{end}}{{else}}opened{{with tgRichName .PullRequest.Author}} by {{.}}{{end}}{{end}}</p>
 {{- with tgRichPRTitle .PullRequest -}}
 <p>{{.}}</p>
 {{- end -}}

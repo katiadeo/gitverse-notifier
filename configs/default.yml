@@ -16,7 +16,7 @@ telegram_tags:
   dgalitsyn: Gonshik07
   akozlov: artemkz
   ztkhakokhov: Zuber_TO
-
+  mtelnov: memesmaster71
 # Доступные события - ТОЛЬКО ДЛЯ СПРАВКИ
 available_events:
   - type: pull_request.opened
